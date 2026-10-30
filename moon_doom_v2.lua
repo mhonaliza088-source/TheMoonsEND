@@ -26,6 +26,8 @@ local CONFIG = {
 	Wind = true,           -- wind pushes your character
 	LowGravity = true,     -- gravity drops as the Moon gets closer
 	Floating = true,       -- nearby small objects float away
+	Rattle = true,         -- loose objects shake with quakes (stronger quake = harder rattle)
+	RattleAnchored = true, -- also rattle small anchored props, not just unanchored parts
 }
 
 --------------------------------------------------------------------
@@ -99,7 +101,7 @@ local function newFx(class, props)
 	o.Parent = Lighting
 	return track(o)
 end
-local cc = newFx("ColorCorrection", {Name = "DoomCC"})
+local cc = newFx("ColorCorrectionEffect", {Name = "DoomCC"})
 local bloom = newFx("BloomEffect", {Name = "DoomBloom", Intensity = 0, Size = 28, Threshold = 0.8})
 local blur = newFx("BlurEffect", {Name = "DoomBlur", Size = 0})
 local rays = newFx("SunRaysEffect", {Name = "DoomRays", Intensity = 0, Spread = 0.8})
@@ -192,21 +194,21 @@ S("5 WEEKS BEFORE", "The Storm Season That Wouldn't End",
 	"The Moon is visibly larger. Its pull now drags on the atmosphere as well as the oceans.",
 	"Storm systems merge and sit over land for days. Hurricanes form out of season and the first coastal evacuations begin. Faint tremors rattle the fault lines.",
 	"Move supplies inland and start digging your shelter.",
-	{moonDeg = 2.2, rain = 90, lightning = 0.08, wind = 12, hurr = 0.3, quake = 0.05, ccSat = -0.1,
+	{moonDeg = 2.2, rain = 90, lightning = 0.08, wind = 12, hurr = 0.3, ccSat = -0.1,
 	 ccTint = C(225, 230, 240), atmDensity = 0.35, atmColor = C(160, 170, 185), atmHaze = 1.2, gravity = G(0.99)})
 
 S("1 MONTH BEFORE", "Superstorms",
 	"The Moon spans several times its old width and the tides have doubled.",
 	"Category 5 hurricanes batter every coastline and non-stop lightning storms knock out power grids. Earthquakes hit the major faults every day.",
 	"Finish your shelter. Get to high ground before the sea rises.",
-	{moonDeg = 2.7, rain = 150, lightning = 0.2, wind = 22, hurr = 0.55, quake = 0.12, exposure = -0.15,
+	{moonDeg = 2.7, rain = 150, lightning = 0.2, wind = 22, hurr = 0.55, exposure = -0.15,
 	 ccSat = -0.18, ccTint = C(205, 212, 225), atmColor = C(120, 130, 150), atmDecay = C(80, 90, 110), gravity = G(0.97)})
 
 S("1 WEEK BEFORE", "Tides Out of Control",
 	"The Moon fills a huge part of the sky and Earth's crust begins to flex under its pull.",
 	"Tides surge far inland, hurricane-force winds never stop and the sky flickers with constant lightning. Loose objects start to feel oddly light in the strange gravity.",
 	"Last chance. Shelter now, on high ground. Day 1 is next.",
-	{moonDeg = 3.4, rain = 200, lightning = 0.35, wind = 35, hurr = 0.8, quake = 0.2, clock = 20,
+	{moonDeg = 3.4, rain = 200, lightning = 0.35, wind = 35, hurr = 0.8, clock = 20,
 	 brightness = 1.2, ambient = C(60, 65, 85), outdoor = C(85, 90, 115), gravity = G(0.93), atmDensity = 0.38,
 	 atmColor = C(110, 120, 145), fogStart = 100, fogEnd = 3500, ccSat = -0.25, ccTint = C(195, 205, 225)})
 
@@ -214,15 +216,15 @@ S("DAY 1 / 15", "The Tidal Shock",
 	"The Moon's orbit destabilizes, setting it on a collision course.",
 	"Ocean tides go haywire, surging hundreds of feet high within minutes and wiping out coastal cities worldwide. Tectonic plates buckle, triggering massive earthquakes along major fault lines.",
 	"Get to high ground NOW. Stay away from the coast.",
-	{moonDeg = 5, quake = 0.4, water = 26, rain = 220, lightning = 0.5, wind = 40, hurr = 0.9, gravity = G(0.9)})
+	{moonDeg = 5, water = 26, rain = 220, lightning = 0.5, wind = 40, hurr = 0.9, gravity = G(0.9)})
 
 S("DAY 2 / 15", "The Looming Giant",
 	"The Moon closes the distance, dominating the night sky as a massive disk.",
 	"High tides become permanent coastal floods, rendering low-lying regions completely uninhabitable. Low-Earth-orbit satellites experience erratic drag from the shifting gravitational gradient.",
-	"Floods are permanent. Stay high and inland.",
-	{moonDeg = 32, quake = 0.25, water = 14, clock = 22, brightness = 1, ambient = C(45, 50, 75), outdoor = C(70, 75, 105),
+	"Floods are permanent. Stay high and inland. The first faint tremors begin.",
+	{moonDeg = 32, quake = 0.1, water = 14, clock = 22, brightness = 1, ambient = C(45, 50, 75), outdoor = C(70, 75, 105),
 	 ccSat = -0.2, ccTint = C(200, 210, 235), atmColor = C(100, 110, 140), atmDecay = C(60, 65, 90), atmHaze = 1, exposure = 0.1,
-	 rain = 160, lightning = 0.3, wind = 28, hurr = 0.7, gravity = G(0.84), float = 0.1})
+	 rain = 160, lightning = 0.3, wind = 28, hurr = 0.7, gravity = G(0.84)})
 
 S("DAY 3 / 15", "Global Tectonic Awakening",
 	"Gravitational stress deforms Earth's crust on a planetary scale.",
@@ -681,7 +683,7 @@ local function dropFloater(f)
 	pcall(function() f.clone:Destroy() end)
 end
 
-local function pickFloaters(count)
+local function pickFloaters(count, rattleOnly)
 	local root = getRoot()
 	if not root then return end
 	overlap.FilterDescendantsInstances = {lp.Character, fx}
@@ -693,8 +695,15 @@ local function pickFloaters(count)
 		local p = parts[math.random(#parts)]
 		if p and not picked[p] and p ~= floorPart and not p:IsA("Terrain") then
 			local mag = p.Size.Magnitude
+			local sizeOk
+			if rattleOnly then
+				sizeOk = (not p.Anchored and mag >= 1.5 and mag <= 40)
+					or (CONFIG.RattleAnchored and p.Anchored and mag >= 1.5 and mag <= 12)
+			else
+				sizeOk = mag >= 3 and mag <= 32
+			end
 			local model = p:FindFirstAncestorOfClass("Model")
-			if mag >= 3 and mag <= 32 and p.Transparency < 0.9 and not (model and model:FindFirstChildOfClass("Humanoid")) then
+			if sizeOk and p.Transparency < 0.9 and not (model and model:FindFirstChildOfClass("Humanoid")) then
 				local ok, cl = pcall(function() return p:Clone() end)
 				if ok and cl then
 					for _, ch in ipairs(cl:GetChildren()) do
@@ -709,7 +718,7 @@ local function pickFloaters(count)
 					picked[p] = true
 					local cf = p.CFrame
 					floaters[#floaters + 1] = {clone = cl, orig = p, pos = cf.Position, home = cf.Position.Y, rot = cf - cf.Position,
-						vel = Vector3.zero, launched = false, phase = math.random() * 6.28,
+						vel = Vector3.zero, launched = false, phase = math.random() * 6.28, size = mag,
 						ang = Vector3.new((math.random() - 0.5) * 2, (math.random() - 0.5) * 2, (math.random() - 0.5) * 2)}
 				end
 			end
@@ -717,8 +726,31 @@ local function pickFloaters(count)
 	end
 end
 
+-- how hard one object rattles: grows with quake strength, small objects rattle more
+local function rattleOffset(f, amp, t)
+	if amp < 0.015 then return Vector3.zero, CFrame.new() end
+	local k = math.clamp(8 / math.max(f.size, 1), 0.5, 2)
+	local ph = f.phase * 7
+	local fr = 30 + amp * 25
+	local s = math.min(amp * 1.2 * k, 1.6)
+	local off = Vector3.new(
+		math.noise(t * fr + ph, 1.1, 0) * 2 * s,
+		math.abs(math.noise(t * fr + ph, 2.2, 0)) * 2 * s,
+		math.noise(t * fr + ph, 3.3, 0) * 2 * s)
+	if amp > 0.4 then
+		off += Vector3.new(0, math.max(0, math.noise(t * 9 + ph, 4.4, 0)) * 2 * amp * k, 0)
+	end
+	local tilt = math.min(amp * 0.09 * k, 0.18)
+	local rot = CFrame.Angles(
+		math.noise(t * fr + ph, 5.5, 0) * 2 * tilt,
+		math.noise(t * fr + ph, 6.6, 0) * 2 * tilt,
+		math.noise(t * fr + ph, 7.7, 0) * 2 * tilt)
+	return off, rot
+end
+
 local function floaterStep(dt, t)
 	local fv = CONFIG.Floating and N.float.Value or 0
+	local amp = CONFIG.Rattle and (N.quake.Value + burst * 0.6) or 0
 	local root = getRoot()
 	local rp = root and root.Position or startPos
 	local moonFlat = Vector3.new(moonDir.X, 0, moonDir.Z).Unit
@@ -726,6 +758,9 @@ local function floaterStep(dt, t)
 		local f = floaters[i]
 		if not f.clone.Parent then
 			table.remove(floaters, i)
+		elseif not f.launched and not f.orig.Parent then
+			table.remove(floaters, i)
+			dropFloater(f)
 		else
 			if fv >= 0.7 then f.launched = true end
 			if f.launched then
@@ -746,13 +781,21 @@ local function floaterStep(dt, t)
 					dropFloater(f)
 				end
 			else
-				local target = f.home + fv * fv * 45 + math.sin(t * 1.7 + f.phase) * 0.5 * fv
+				-- follows the real part (so pushed/rolling objects still look right), plus hover + rattle
+				local oc = f.orig.CFrame
+				f.home = oc.Y
+				local target = oc.Y + fv * fv * 45 + math.sin(t * 1.7 + f.phase) * 0.5 * fv
 				local y = f.pos.Y + (target - f.pos.Y) * math.min(1, dt * 1.5)
-				f.pos = Vector3.new(f.pos.X, y, f.pos.Z)
-				local k = dt * 0.3 * fv
-				f.rot = CFrame.Angles(f.ang.X * k, f.ang.Y * k, f.ang.Z * k) * f.rot
-				f.clone.CFrame = CFrame.new(f.pos) * f.rot
-				if fv < 0.02 and math.abs(f.pos.Y - f.home) < 0.3 then
+				f.pos = Vector3.new(oc.X, y, oc.Z)
+				if fv > 0.02 then
+					local k = dt * 0.3 * fv
+					f.rot = CFrame.Angles(f.ang.X * k, f.ang.Y * k, f.ang.Z * k) * f.rot
+				else
+					f.rot = oc - oc.Position
+				end
+				local off, jr = rattleOffset(f, amp, t)
+				f.clone.CFrame = CFrame.new(f.pos + off) * jr * f.rot
+				if fv < 0.02 and amp < 0.012 and math.abs(f.pos.Y - oc.Y) < 0.3 then
 					table.remove(floaters, i)
 					releaseFloater(f)
 				end
@@ -995,9 +1038,9 @@ RunService:BindToRenderStep("MoonDoomFX", Enum.RenderPriority.Camera.Value + 1, 
 
 	-- earthquake / shockwave / wind-gust shake
 	local q = CONFIG.Quakes and (N.quake.Value + burst) or 0
-	q += windMag * 0.004
+	q = q > 0 and q ^ 0.85 or 0
 	burst = burst * math.exp(-dt * 1.1)
-	if q > 0.02 then
+	if q > 0.015 then
 		cam.CFrame = cam.CFrame
 			* CFrame.new(math.noise(t * 23, 1.3, 0) * 2 * q * 0.5, math.noise(t * 27, 7.7, 0) * 2 * q * 0.5, 0)
 			* CFrame.Angles(math.noise(t * 19, 5.1, 0) * 2 * q * 0.012, math.noise(t * 21, 9.7, 0) * 2 * q * 0.012, math.noise(t * 17, 3.3, 0) * 2 * q * 0.02)
@@ -1102,15 +1145,20 @@ connect(RunService.Heartbeat, function(dt)
 	if floatAcc > 1.2 then
 		floatAcc = 0
 		local fv = CONFIG.Floating and N.float.Value or 0
-		if fv > 0.05 and #floaters < math.floor(70 * math.min(fv, 1)) then pickFloaters(4) end
+		local qv = CONFIG.Rattle and N.quake.Value or 0
+		if fv > 0.05 and #floaters < math.floor(70 * math.min(fv, 1)) then
+			pickFloaters(4, false)
+		elseif qv > 0.03 and #floaters < math.floor(10 + 45 * math.min(qv / 0.4, 1)) then
+			pickFloaters(5, true)
+		end
 	end
 	floaterStep(dt, t)
 
 	-- aftershocks
-	if N.quake.Value > 0.1 then
+	if N.quake.Value > 0.05 then
 		aftershock -= dt
 		if aftershock <= 0 then
-			burst += 0.4 + math.random() * 0.6 * N.quake.Value
+			burst += N.quake.Value * (0.6 + math.random() * 0.8)
 			aftershock = math.random(6, 16) / (1 + N.quake.Value)
 		end
 	end
