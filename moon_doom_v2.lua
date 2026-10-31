@@ -860,6 +860,20 @@ local function updateWind(t)
 	rainMul = eyeCalm and 0.1 or (1 + 1.5 * hf)
 end
 
+-- error reporting: each distinct error is printed once and shown on screen
+local seenErr = {}
+local errSink
+local function report(where, e)
+	local msg = where .. ": " .. tostring(e)
+	if seenErr[msg] then return end
+	seenErr[msg] = true
+	warn("[MoonDoom] " .. msg)
+	if errSink then errSink(msg) end
+end
+
+-- Part 2 lives in its own function (Luau allows max 200 local variables per function)
+local function __part2()
+
 --------------------------------------------------------------------
 -- DAMAGE
 --------------------------------------------------------------------
@@ -1397,6 +1411,10 @@ local hud = mk("TextLabel", {Position = UDim2.new(0, 8, 0.32, 0), Size = UDim2.n
 	TextYAlignment = Enum.TextYAlignment.Top, Text = "", BorderSizePixel = 0, ZIndex = 6}, gui)
 mk("UICorner", {CornerRadius = UDim.new(0, 6)}, hud)
 mk("UIPadding", {PaddingLeft = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingRight = UDim.new(0, 6)}, hud)
+local errL = mk("TextLabel", {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.new(0, 420, 0, 60),
+	BackgroundTransparency = 1, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = C(255, 120, 110), TextWrapped = true,
+	TextStrokeTransparency = 0.5, Text = "", ZIndex = 9}, gui)
+errSink = function(msg) errL.Text = "SCRIPT ERROR (screenshot this): " .. msg end
 
 local function refreshPanel()
 	local d = STAGES[stage]
@@ -1657,7 +1675,7 @@ end
 --------------------------------------------------------------------
 -- RENDER STEP
 --------------------------------------------------------------------
-RunService:BindToRenderStep("MoonDoomFX", Enum.RenderPriority.Camera.Value + 1, function(dt)
+local function renderStep(dt)
 	local cam = Workspace.CurrentCamera
 	if not cam or not running then return end
 	local t = os.clock()
@@ -1737,6 +1755,10 @@ RunService:BindToRenderStep("MoonDoomFX", Enum.RenderPriority.Camera.Value + 1, 
 	-- damage flash
 	dmgFlash = math.max(0, dmgFlash - dt * 1.4)
 	dmgFrame.BackgroundTransparency = 1 - math.min(dmgFlash, 1) * 0.55
+end
+RunService:BindToRenderStep("MoonDoomFX", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	local ok, e = pcall(renderStep, dt)
+	if not ok then report("render", e) end
 end)
 
 --------------------------------------------------------------------
@@ -1802,7 +1824,7 @@ local function hazardTick(step, t)
 	if q > 0.6 and hum.FloorMaterial ~= Enum.Material.Air and math.random() < (q - 0.6) * 0.07 then stumble() end
 end
 
-connect(RunService.Heartbeat, function(dt)
+local function heartbeat(dt)
 	if not running then return end
 	local t = os.clock()
 
@@ -1955,6 +1977,10 @@ connect(RunService.Heartbeat, function(dt)
 		hud.Text = table.concat(lines, "\n")
 		hud.Size = UDim2.new(0, 235, 0, 12 + #lines * 15)
 	end
+end
+connect(RunService.Heartbeat, function(dt)
+	local ok, e = pcall(heartbeat, dt)
+	if not ok then report("loop", e) end
 end)
 
 --------------------------------------------------------------------
@@ -1963,3 +1989,7 @@ end)
 applyStage(stage, true)
 showBanner(stage)
 print("[MoonDoom v3] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
+end
+
+local __ok, __err = xpcall(__part2, function(e) return tostring(e) .. "\n" .. debug.traceback() end)
+if not __ok then warn("[MoonDoom] STARTUP ERROR: " .. tostring(__err)) end
