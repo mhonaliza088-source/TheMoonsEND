@@ -1,5 +1,5 @@
 --[[
-	MOON COLLISION v3 - LEAD-UP + 15 DAY DOOMSDAY  (Delta compatible, client-side)
+	MOON COLLISION v4 - LEAD-UP + 15 DAY DOOMSDAY  (Delta compatible, client-side)
 
 	One stage every StageLength seconds (default 30):
 	  1 normal day | 2-5 = 5 months / 5 weeks / 1 month / 1 week before | 6-20 = Day 1 ... Day 15
@@ -67,6 +67,7 @@ local Terrain = Workspace:FindFirstChildOfClass("Terrain")
 
 -- shared hazard state
 local covered, deep = false, false
+local sealed, layersN, enclosure = false, 0, 0
 local hazardDps, hazardWhy = 0, ""
 local oxy = CONFIG.OxygenSeconds
 local AIRMAX = 25
@@ -294,22 +295,22 @@ S("1 WEEK BEFORE", "Tides Out of Control",
 	{moonDeg = 3.4, rain = 230, lightning = 0.38, wind = 38, hurr = 0.8, clock = 20, brightness = 1.2,
 	 ambient = C(60, 65, 85), outdoor = C(85, 90, 115), gravity = G(0.93), atmDensity = 0.38,
 	 atmColor = C(110, 120, 145), fogStart = 100, fogEnd = 3500, ccSat = -0.25, ccTint = C(195, 205, 225),
-	 tsu = {{t = 6, h = 35}}})
+	 tsu = {{t = 6, h = 8}}})
 
 S("DAY 1 / 15", "The Tidal Shock",
 	"The Moon's orbit destabilizes, setting it on a collision course.",
 	"Ocean tides go haywire, surging hundreds of feet high within minutes and wiping out coastal cities worldwide.",
 	"TSUNAMIS. Climb above the wave height or you will be swept away.",
-	{moonDeg = 5, water = 22, rain = 260, lightning = 0.55, wind = 44, hurr = 0.9, gravity = G(0.9),
-	 tsu = {{t = 1, h = 70}, {t = 10, h = 110}}})
+	{moonDeg = 5, water = 10, rain = 260, lightning = 0.55, wind = 44, hurr = 0.9, gravity = G(0.9),
+	 tsu = {{t = 1, h = 12}, {t = 10, h = 18}}})
 
 S("DAY 2 / 15", "The Looming Giant",
 	"The Moon closes the distance, dominating the night sky as a massive disk.",
 	"High tides become permanent coastal floods, rendering low-lying regions completely uninhabitable. Low-Earth-orbit satellites experience erratic drag from the shifting gravitational gradient.",
 	"Floods are permanent. Stay high. The first faint tremors begin.",
-	{moonDeg = 32, quake = 0.1, water = 12, clock = 22, brightness = 1, ambient = C(45, 50, 75), outdoor = C(70, 75, 105),
+	{moonDeg = 32, quake = 0.1, water = 8, clock = 22, brightness = 1, ambient = C(45, 50, 75), outdoor = C(70, 75, 105),
 	 ccSat = -0.2, ccTint = C(200, 210, 235), atmColor = C(100, 110, 140), atmDecay = C(60, 65, 90), atmHaze = 1, exposure = 0.1,
-	 rain = 190, lightning = 0.32, wind = 30, hurr = 0.7, gravity = G(0.84), tsu = {{t = 2, h = 80}}})
+	 rain = 190, lightning = 0.32, wind = 30, hurr = 0.7, gravity = G(0.84), tsu = {{t = 2, h = 14}}})
 
 S("DAY 3 / 15", "Global Tectonic Awakening",
 	"Gravitational stress deforms Earth's crust on a planetary scale.",
@@ -319,14 +320,14 @@ S("DAY 3 / 15", "Global Tectonic Awakening",
 	 atmDensity = 0.38, atmColor = C(120, 100, 90), atmDecay = C(80, 50, 30), atmHaze = 3,
 	 ambient = C(60, 48, 42), outdoor = C(80, 62, 52), fogColor = C(85, 75, 70), fogStart = 200, fogEnd = 3500,
 	 rain = 0, lightning = 0.6, boltCol = C(255, 190, 120), wind = 42, hurr = 0.8, hurrCol = C(90, 75, 65),
-	 gravity = G(0.75), float = 0.25, toxic = 0.6, tsu = {{t = 5, h = 100}}})
+	 gravity = G(0.75), float = 0.25, toxic = 0.6, tsu = {{t = 5, h = 20}}})
 
 S("DAY 4 / 15", "Crossing the Roche Limit",
 	"The Moon reaches the Roche limit (~9,500 km up), where Earth's tidal forces overcome the Moon's internal gravity.",
 	"The Moon distorts into an egg-like shape and violently begins to tear apart, its crust fracturing under the strain.",
 	"Watch the sky. The Moon is about to rupture.",
 	{moonDeg = 78, egg = 1, core = 0, moonCol = C(215, 180, 160), quake = 1, ember = 22, atmDensity = 0.35,
-	 lightning = 0.4, wind = 32, hurr = 0.5, gravity = G(0.6), float = 0.5, toxic = 0.6, tsu = {{t = 14, h = 90}}}, "breakup")
+	 lightning = 0.4, wind = 32, hurr = 0.5, gravity = G(0.6), float = 0.5, toxic = 0.6, tsu = {{t = 14, h = 16}}}, "breakup")
 
 S("DAY 5 / 15", "The Birth of Earth's Ring System",
 	"The shattered lunar material spreads out into orbit.",
@@ -374,7 +375,7 @@ S("DAY 9 / 15", "The Core Impact",
 	 atmDensity = 1, atmColor = C(255, 90, 20), atmDecay = C(255, 60, 10), atmHaze = 6,
 	 fogColor = C(255, 110, 40), fogStart = 0, fogEnd = 300, ccTint = C(255, 140, 90), bloom = 1.5,
 	 lightning = 0.8, boltCol = C(255, 200, 140), wind = 100, hurr = 0.6, hurrCol = C(255, 100, 30), gravity = G(1), float = 0,
-	 heat = 6, toxic = 2, crackHot = true, tsu = {{t = 12, h = 260}}}, "impact")
+	 heat = 6, toxic = 2, crackHot = true, tsu = {{t = 12, h = 45}}}, "impact")
 
 S("DAY 10 / 15", "Planetary Shockwaves & Vaporized Oceans",
 	"Mega-shockwaves circle the globe multiple times.",
@@ -384,7 +385,7 @@ S("DAY 10 / 15", "Planetary Shockwaves & Vaporized Oceans",
 	 brightness = 2, ambient = C(180, 120, 90), outdoor = C(230, 150, 110),
 	 atmColor = C(230, 200, 180), atmDecay = C(220, 170, 140), fogColor = C(230, 200, 180), fogEnd = 220,
 	 ccBright = 0.1, ccTint = C(255, 235, 215), bloom = 1, wind = 70, hurr = 0.5, hurrCol = C(200, 170, 150),
-	 heat = 8, toxic = 1.5, tsu = {{t = 2, h = 180}}})
+	 heat = 8, toxic = 1.5, tsu = {{t = 2, h = 30}}})
 
 S("DAY 11 / 15", "The Ejecta Fallout (Molten Rain)",
 	"Tons of pulverized rock and magma blasted into space by the Day 9 impact rain back down.",
@@ -430,7 +431,7 @@ S("DAY 15 / 15", "A Silent, Ringed World",
 	"The skies clear slightly, revealing the aftermath.",
 	"Earth is completely unrecognizable - a sterile, silent, ocean-covered world stripped of all life, orbited by a brilliant, permanent ring system composed of the leftover debris of its former moon.",
 	"It is over. Look up.",
-	{quake = 0, acid = 0, water = 36, waterCol = C(25, 70, 100), ringT = 0, brightness = 1.2, bloom = 0.2,
+	{quake = 0, acid = 0, water = 14, waterCol = C(25, 70, 100), ringT = 0, brightness = 1.2, bloom = 0.2,
 	 ambient = C(60, 65, 85), outdoor = C(85, 95, 120), atmColor = C(150, 165, 190), atmDecay = C(90, 100, 130), atmHaze = 1, atmDensity = 0.25,
 	 fogColor = C(60, 70, 90), fogStart = 400, fogEnd = 3000, ccSat = -0.35, ccTint = C(200, 215, 235),
 	 lightning = 0, wind = 3, hurr = 0.1, boltCol = C(210, 225, 255), hush = 1,
@@ -852,7 +853,7 @@ local function updateWind(t)
 		local tang = Vector3.new(-rel.Z, 0, rel.X).Unit
 		local inward = (-rel).Unit
 		local k = math.min(hf * 1.5, 1)
-		dir = dir * (1 - k) + (tang + inward * 0.35).Unit * k
+		dir = dir * (1 - k) + (tang + inward * 0.8).Unit * k
 	end
 	if dir.Magnitude > 0.01 then dir = dir.Unit end
 	wd = dir
@@ -873,6 +874,12 @@ end
 
 -- Part 2 lives in its own function (Luau allows max 200 local variables per function)
 local function __part2()
+
+local onWave, structDamage, onStage, survivalCleanup
+local buildFolder = Instance.new("Folder")
+buildFolder.Name = "DoomBuild"
+buildFolder.Parent = Workspace
+track(buildFolder)
 
 --------------------------------------------------------------------
 -- DAMAGE
@@ -898,7 +905,7 @@ end
 local function blast(dmg, impulse, why)
 	local root = getRoot()
 	if not root then return end
-	local expo = deep and 0.2 or (covered and 0.6 or 1)
+	local expo = deep and 0.2 or (sealed and 0.4 or (covered and 0.6 or 1))
 	hurt(dmg * expo, why, true)
 	local dv = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5)
 	if dv.Magnitude < 0.1 then dv = Vector3.xAxis end
@@ -970,6 +977,7 @@ local function impact(pos, size)
 		e.Position = pos
 		e.Parent = Workspace
 	end
+	if structDamage then structDamage(pos, 14, 45) end
 	if #scorches < 40 then
 		local d = math.clamp(size * 2.2, 6, 18)
 		local sc = mkPart(Vector3.new(0.1, d, d), CFrame.new(pos.X, pos.Y + 0.1, pos.Z) * CFrame.Angles(0, 0, math.pi / 2), Enum.Material.SmoothPlastic, C(14, 12, 12))
@@ -1078,7 +1086,7 @@ local function fireStep()
 	if #fireList >= fireTarget then return end
 	local root = getRoot()
 	if not root then return end
-	overlap.FilterDescendantsInstances = {lp.Character, fx}
+	overlap.FilterDescendantsInstances = {lp.Character, fx, buildFolder}
 	local parts = Workspace:GetPartBoundsInRadius(root.Position, 170, overlap)
 	if #parts == 0 then return end
 	for _ = 1, 3 do
@@ -1121,7 +1129,7 @@ end
 local function pickFloaters(count, rattleOnly)
 	local root = getRoot()
 	if not root then return end
-	overlap.FilterDescendantsInstances = {lp.Character, fx}
+	overlap.FilterDescendantsInstances = {lp.Character, fx, buildFolder}
 	local parts = Workspace:GetPartBoundsInRadius(root.Position, 140, overlap)
 	if #parts == 0 then return end
 	local floor = Workspace:Raycast(root.Position, Vector3.new(0, -8, 0), rayP())
@@ -1268,7 +1276,7 @@ local function spawnTsunami(h)
 	wall.Parent, back.Parent, foam.Parent = fx, fx, fx
 	tsunamis[#tsunamis + 1] = {wall = wall, back = back, foam = foam, dir = dir, right = dir:Cross(Vector3.yAxis),
 		start = start, d = 0, speed = 85, h = h, width = width, hit = false}
-	if toast then toast("TSUNAMI APPROACHING (" .. h .. " studs) - GET TO HIGH GROUND", C(120, 200, 255), 5) end
+	if toast then toast("TSUNAMI APPROACHING - get " .. h .. "+ studs above the ground (ramps + pallets)", C(120, 200, 255), 5) end
 	oneShot(SND.boom, 1, 0.2, 0)
 end
 
@@ -1286,6 +1294,7 @@ local function tsunamiStep(dt)
 		place(w.wall, front + Vector3.new(0, w.h / 2 - 2, 0))
 		place(w.foam, front + Vector3.new(0, w.h - 1, 0) - w.dir * 10)
 		place(w.back, front - w.dir * 480 + Vector3.new(0, w.h * 0.225 - 2, 0))
+        if onWave then onWave(w, front) end
 		local rel = Vector3.new(rp.X - front.X, 0, rp.Z - front.Z)
 		local along = rel:Dot(w.dir)
 		local lateral = math.abs(rel:Dot(w.right))
@@ -1298,8 +1307,8 @@ local function tsunamiStep(dt)
 				burst += 2
 				if flash then flash(0.35, 1.5) end
 				oneShot(SND.boom, 2, 0.3, 0)
-				blast(math.min(60, 10 + w.h * 0.18), 80, "tsunami")
-				if root then root:ApplyImpulse(w.dir * root.AssemblyMass * 90) end
+				blast(math.min(30, 5 + w.h * 0.3), 45, "tsunami")
+				if root then root:ApplyImpulse(w.dir * root.AssemblyMass * 50) end
 			end
 			if along > -930 and along < 30 and heightRel < w.h * 0.45 - 3 then
 				tsuSurface = baseY + w.h * 0.45
@@ -1440,6 +1449,544 @@ local function btn(txt, cb)
 end
 
 --------------------------------------------------------------------
+-- SURVIVAL: trees -> wood -> pallets -> shelter  (+ extra world details)
+--------------------------------------------------------------------
+local wood, pallets = 0, 0
+local trees, pieces, pieceKeys = {}, {}, {}
+local treeFolder = Instance.new("Folder")
+treeFolder.Name = "DoomTrees"
+treeFolder.Parent = fx
+local PCOL = C(150, 105, 60)
+local lastBurnMsg = 0
+
+local function setTree(rec, rot)
+	for _, p in ipairs(rec.parts) do p.part.CFrame = rec.baseCF * rot * p.rel end
+end
+
+local function chopTree(rec)
+	if rec.felled then return end
+	rec.felled = true
+	for i, r in ipairs(trees) do
+		if r == rec then table.remove(trees, i) break end
+	end
+	local gain = math.random(3, 4)
+	wood += gain
+	toast("+" .. gain .. " wood  (total " .. wood .. ")", C(215, 170, 110), 1.8)
+	oneShot(SND.pop, 0.8, 0.45, 0)
+	pcall(function() rec.prompt:Destroy() end)
+	for _, p in ipairs(rec.parts) do p.part.CanCollide = false end
+	local axis = Vector3.yAxis:Cross(Vector3.new(math.cos(rec.phase), 0, math.sin(rec.phase)))
+	task.spawn(function()
+		local t0 = os.clock()
+		while running and os.clock() - t0 < 1.3 do
+			local k = math.min(1, (os.clock() - t0) / 1.2)
+			setTree(rec, CFrame.fromAxisAngle(axis, k * k * (math.pi / 2)))
+			task.wait()
+		end
+		pcall(function() rec.model:Destroy() end)
+	end)
+end
+
+local function makeTree(x, z)
+	local hit = Workspace:Raycast(Vector3.new(x, baseY + 300, z), Vector3.new(0, -800, 0), rayP())
+	if not hit then return false end
+	local inst = hit.Instance
+	if not (inst:IsA("Terrain") or (inst.Size.X >= 60 and inst.Size.Z >= 60)) then return false end
+	local surf = surfaceY()
+	if surf and hit.Position.Y < surf then return false end
+	local gy = hit.Position.Y
+	local h = math.random(18, 30)
+	local model = Instance.new("Model")
+	model.Name = "DoomTree"
+	local baseCF = CFrame.new(x, gy, z)
+	local parts = {}
+	local function add(part, rel)
+		part.Parent = model
+		parts[#parts + 1] = {part = part, rel = rel}
+		part.CFrame = baseCF * rel
+	end
+	local trunk = mkPart(Vector3.new(h, 2.4, 2.4), CFrame.new(), Enum.Material.Wood, C(105, 72, 42))
+	trunk.Shape = Enum.PartType.Cylinder
+	trunk.CanCollide = true
+	add(trunk, CFrame.new(0, h / 2, 0) * CFrame.Angles(0, 0, math.pi / 2))
+	for k = 1, 3 do
+		local d = math.random(12, 17) * (1.1 - k * 0.15)
+		local leaf = sphere(mkPart(Vector3.new(d, d * 0.8, d), CFrame.new(), Enum.Material.Grass,
+			C(math.random(40, 60), math.random(100, 125), math.random(40, 55))))
+		add(leaf, CFrame.new(math.random(-2, 2), h - 2 + k * 3.2, math.random(-2, 2)))
+	end
+	local pp = Instance.new("ProximityPrompt")
+	pp.ActionText = "Chop tree"
+	pp.ObjectText = "Tree"
+	pp.HoldDuration = 1.2
+	pp.MaxActivationDistance = 12
+	pp.RequiresLineOfSight = false
+	pp.Parent = trunk
+	model.Parent = treeFolder
+	local rec = {model = model, parts = parts, baseCF = baseCF, phase = math.random() * 6.28, prompt = pp}
+	pp.Triggered:Connect(function() chopTree(rec) end)
+	trees[#trees + 1] = rec
+	return true
+end
+
+local function spawnTrees(n)
+	local root = getRoot()
+	for _ = 1, n do
+		local around = (math.random() < 0.5 or not root) and startPos or root.Position
+		local ang, dist = math.random() * math.pi * 2, math.random(25, 340)
+		makeTree(around.X + math.cos(ang) * dist, around.Z + math.sin(ang) * dist)
+	end
+end
+
+local function chopNearest()
+	local root = getRoot()
+	if not root then return end
+	local best, bd = nil, 15
+	for _, rec in ipairs(trees) do
+		local d = (rec.baseCF.Position - root.Position).Magnitude
+		if d < bd then best, bd = rec, d end
+	end
+	if best then chopTree(best) else toast("No tree within reach - walk up to one", C(255, 200, 120), 2) end
+end
+
+local function burnTrees()
+	for _, rec in ipairs(trees) do
+		pcall(function()
+			local f = Instance.new("Fire")
+			f.Size = 14
+			f.Heat = 15
+			f.Parent = rec.parts[1].part
+			rec.prompt:Destroy()
+		end)
+		task.delay(4 + math.random() * 5, function() pcall(function() rec.model:Destroy() end) end)
+	end
+	trees = {}
+end
+
+-- crafting + building -------------------------------------------------
+local function craftPallet()
+	if wood < 2 then
+		toast("A pallet needs 2 wood - chop trees first", C(255, 200, 120), 2.5)
+		return
+	end
+	wood -= 2
+	pallets += 1
+	oneShot(SND.pop, 0.7, 0.8, 0)
+	toast("Crafted a wooden pallet  (pallets: " .. pallets .. ")", C(215, 170, 110), 1.8)
+end
+
+local PIECES = {"Wall", "Floor", "Roof", "Ramp"}
+local pieceIdx, bLevel, buildOn = 1, 0, false
+local GR = 8
+
+local function placement()
+	local root = getRoot()
+	if not root then return nil end
+	local p = root.Position
+	local lk = root.CFrame.LookVector
+	local look = Vector3.new(lk.X, 0, lk.Z)
+	if look.Magnitude < 0.05 then look = Vector3.new(0, 0, -1) end
+	look = look.Unit
+	local cx = math.floor(p.X / GR) * GR + GR / 2
+	local cz = math.floor(p.Z / GR) * GR + GR / 2
+	local alongX = math.abs(look.X) >= math.abs(look.Z)
+	local sx = alongX and (look.X > 0 and 1 or -1) or 0
+	local sz = (not alongX) and (look.Z > 0 and 1 or -1) or 0
+	local y0 = baseY + bLevel * GR
+	local kind = PIECES[pieceIdx]
+	local res = {kind = kind, ok = true}
+	if kind == "Wall" then
+		if alongX then
+			res.cf = CFrame.new(cx + sx * GR / 2, y0 + GR / 2, cz)
+			res.size = Vector3.new(0.8, GR, GR + 0.8)
+		else
+			res.cf = CFrame.new(cx, y0 + GR / 2, cz + sz * GR / 2)
+			res.size = Vector3.new(GR + 0.8, GR, 0.8)
+		end
+		res.key = ("Wall|%d|%d|%d|%d|%d"):format(cx, cz, bLevel, sx, sz)
+	elseif kind == "Floor" then
+		res.cf = CFrame.new(cx, y0 + 0.25, cz)
+		res.size = Vector3.new(GR, 0.5, GR)
+		res.key = ("Floor|%d|%d|%d"):format(cx, cz, bLevel)
+	elseif kind == "Roof" then
+		local b = ("Roof|%d|%d|%d"):format(cx, cz, bLevel)
+		local s = 0
+		while s < 4 and pieceKeys[b .. "|" .. s] do s += 1 end
+		res.cf = CFrame.new(cx, y0 + GR + 0.25 + s * 1.0, cz)
+		res.size = Vector3.new(GR + 0.4, 0.5, GR + 0.4)
+		res.key = b .. "|" .. s
+		if s >= 4 then res.ok = false res.why = "Roof is already 4 layers thick" end
+	else
+		local d = alongX and Vector3.new(sx, 0, 0) or Vector3.new(0, 0, sz)
+		local center = Vector3.new(cx, y0 + GR / 2, cz) + d * (GR / 2 + 6)
+		res.cf = CFrame.lookAt(center, center + d * 12 + Vector3.new(0, GR, 0))
+		res.size = Vector3.new(GR, 0.5, math.sqrt(144 + GR * GR))
+		res.key = ("Ramp|%d|%d|%d|%d|%d"):format(cx, cz, bLevel, sx, sz)
+	end
+	if res.ok and pieceKeys[res.key] then res.ok = false res.why = "Something is already built there" end
+	return res
+end
+
+local function hurtPiece(i, dmg)
+	local r = pieces[i]
+	if not r then return end
+	r.hp -= dmg
+	if r.hp <= 0 then
+		table.remove(pieces, i)
+		pieceKeys[r.key] = nil
+		pcall(function() r.part:Destroy() end)
+		if os.clock() - lastBurnMsg > 6 then
+			lastBurnMsg = os.clock()
+			toast("A shelter piece was destroyed - repair it with pallets!", C(255, 150, 110), 3)
+		end
+	else
+		r.part.Color = PCOL:Lerp(C(25, 20, 18), 1 - r.hp / 100)
+	end
+end
+
+local function placePiece()
+	local pl = placement()
+	if not pl then return end
+	if not pl.ok then toast(pl.why, C(255, 150, 120), 1.8) return end
+	if pallets < 1 then toast("No pallets - craft one first (2 wood)", C(255, 200, 120), 2) return end
+	pallets -= 1
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.CanCollide = true
+	p.CanQuery = true
+	p.CanTouch = false
+	p.Material = Enum.Material.WoodPlanks
+	p.Color = PCOL
+	p.Size = pl.size
+	p.CFrame = pl.cf
+	p.Parent = buildFolder
+	local rec = {part = p, hp = 100, kind = pl.kind, key = pl.key}
+	pieces[#pieces + 1] = rec
+	pieceKeys[pl.key] = rec
+	oneShot(SND.pop, 0.9, 0.55, 0)
+end
+
+local function removeNearest()
+	local root = getRoot()
+	if not root then return end
+	local best, bd = nil, 16
+	for i, r in ipairs(pieces) do
+		local d = (r.part.Position - root.Position).Magnitude
+		if d < bd then best, bd = i, d end
+	end
+	if not best then toast("No built piece within reach", C(255, 200, 120), 1.8) return end
+	local r = table.remove(pieces, best)
+	pieceKeys[r.key] = nil
+	pcall(function() r.part:Destroy() end)
+	pallets += 1
+end
+
+structDamage = function(pos, radius, dmg)
+	for i = #pieces, 1, -1 do
+		local r = pieces[i]
+		if not pos or (r.part.Position - pos).Magnitude <= radius then hurtPiece(i, dmg) end
+	end
+end
+
+onWave = function(w, front)
+	for i = #pieces, 1, -1 do
+		local r = pieces[i]
+		w.hitPieces = w.hitPieces or {}
+		if not w.hitPieces[r] then
+			local rel = r.part.Position - front
+			local flat = Vector3.new(rel.X, 0, rel.Z)
+			if flat:Dot(w.dir) > -30 and flat:Dot(w.dir) < 30 and math.abs(flat:Dot(w.right)) < w.width / 2
+				and r.part.Position.Y < baseY + w.h then
+				w.hitPieces[r] = true
+				hurtPiece(i, 60)
+			end
+		end
+	end
+end
+
+-- fire, acid and impacts slowly destroy exposed wood (top roof layers first)
+local WEAR = {[12] = 0.35, [13] = 0.5, [14] = 0.8, [15] = 0.8, [16] = 3.0, [17] = 0.6, [18] = 0.8, [19] = 1.5}
+local function wearTick()
+	local rate = WEAR[stage] or 0
+	if rate <= 0 or #pieces == 0 then return end
+	local rpar = rayP()
+	for i = #pieces, 1, -1 do
+		local r = pieces[i]
+		if r then
+			local top = r.part.Position + Vector3.new(0, r.part.Size.Y / 2 + 0.2, 0)
+			local exposed = not Workspace:Raycast(top, Vector3.new(0, 200, 0), rpar)
+			local k = (exposed and 1 or 0.12) * (r.kind == "Wall" and 0.5 or 1) * (0.7 + math.random() * 0.6)
+			hurtPiece(i, rate * k)
+		end
+	end
+end
+
+-- UI: wood / pallets / build menu (right side) ---------------------------
+local craftFrame = mk("Frame", {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0.26, 0), Size = UDim2.new(0, 160, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C(10, 10, 14), BackgroundTransparency = 0.4, BorderSizePixel = 0, ZIndex = 6}, gui)
+mk("UICorner", {CornerRadius = UDim.new(0, 6)}, craftFrame)
+mk("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, craftFrame)
+mk("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, craftFrame)
+local invL = mk("TextLabel", {Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 12,
+	TextColor3 = C(235, 200, 150), TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, Text = "", ZIndex = 7, LayoutOrder = 1}, craftFrame)
+local function sbtn(text, order, cb)
+	local b = mk("TextButton", {Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = C(58, 44, 30), BorderSizePixel = 0, Text = text,
+		Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Color3.new(1, 1, 1), ZIndex = 7, LayoutOrder = order}, craftFrame)
+	mk("UICorner", {CornerRadius = UDim.new(0, 5)}, b)
+	connect(b.Activated, cb)
+	return b
+end
+sbtn("CHOP NEAREST TREE", 2, chopNearest)
+sbtn("CRAFT PALLET (2 wood)", 3, craftPallet)
+local modeBtn, pieceBtn
+modeBtn = sbtn("BUILD MODE: OFF", 4, function()
+	buildOn = not buildOn
+	modeBtn.Text = "BUILD MODE: " .. (buildOn and "ON" or "OFF")
+end)
+pieceBtn = sbtn("PIECE: Wall", 5, function()
+	pieceIdx = pieceIdx % #PIECES + 1
+	pieceBtn.Text = "PIECE: " .. PIECES[pieceIdx]
+end)
+local lvlRow = mk("Frame", {Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, ZIndex = 7, LayoutOrder = 6}, craftFrame)
+mk("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4)}, lvlRow)
+local function lbtn(text, cb)
+	local b = mk("TextButton", {Size = UDim2.new(0.5, -2, 1, 0), BackgroundColor3 = C(58, 44, 30), BorderSizePixel = 0, Text = text,
+		Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Color3.new(1, 1, 1), ZIndex = 7}, lvlRow)
+	mk("UICorner", {CornerRadius = UDim.new(0, 5)}, b)
+	connect(b.Activated, cb)
+end
+lbtn("LEVEL -", function() bLevel = math.max(0, bLevel - 1) end)
+lbtn("LEVEL +", function() bLevel = math.min(8, bLevel + 1) end)
+sbtn("PLACE PIECE (1 pallet)", 7, placePiece)
+sbtn("REMOVE NEAREST (+1 pallet)", 8, removeNearest)
+
+local ghost = mkPart(Vector3.new(8, 8, 1), CFrame.new(0, -500, 0), Enum.Material.Neon, C(80, 255, 120))
+ghost.Transparency = 1
+ghost.Parent = fx
+
+-- emergency broadcasts ----------------------------------------------------
+local ALERT = {
+	"Normal conditions. Moon visible, clear skies.",
+	"Astronomers report the Moon's orbit is drifting. Officials call it a measurement error.",
+	"Hurricane watch for every coast. Tides are two meters above normal.",
+	"Superstorms active. Evacuate the coasts. Collect wood, water and supplies.",
+	"Tsunami warning. Seek high ground and build elevated shelters.",
+	"TSUNAMI WARNING: waves incoming. Get above the wave height!",
+	"Coastlines are gone. Floods are permanent. Stay on high ground.",
+	"Magnitude 8 quakes everywhere and volcanoes erupting. Cover your airways.",
+	"The Moon is breaking apart. Take shelter under thick roofs.",
+	"A ring is forming. Debris will fall. Layer your roof.",
+	"Meteors across the sky. Do not go outside.",
+	"Firestorms burning. Wooden shelters are catching fire - repair them.",
+	"Oxygen levels collapsing. Use your reserve sparingly.",
+	"IMPACT IMMINENT. Seal your shelter. Roof layers matter.",
+	"Shockwaves circling the globe.",
+	"Molten rain. Only thick, sealed shelters survive.",
+	"Total darkness. Stay sealed in.",
+	"Surface cooling. Steam storms rage.",
+	"Acid rain. Keep your roof intact.",
+	"Skies clearing. If you hear this, you survived.",
+}
+local alertL = mk("TextLabel", {AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -76), Size = UDim2.new(0, 440, 0, 36),
+	BackgroundTransparency = 1, Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = C(255, 205, 110), TextWrapped = true,
+	TextStrokeTransparency = 0.4, TextTransparency = 1, Text = "", ZIndex = 8}, gui)
+local alertTok = 0
+local function showAlert(text)
+	if not text then return end
+	alertTok += 1
+	local tk = alertTok
+	alertL.Text = "EMERGENCY BROADCAST: " .. text
+	alertL.TextTransparency = 0
+	alertL.TextStrokeTransparency = 0.4
+	task.delay(9, function()
+		if running and tk == alertTok then tw(alertL, {TextTransparency = 1, TextStrokeTransparency = 1}, 1.5) end
+	end)
+end
+
+onStage = function(i, instant)
+	showAlert(ALERT[i])
+	if i >= IMPACT then
+		if i == IMPACT and not instant then task.delay(11, burnTrees) else burnTrees() end
+	end
+end
+
+-- extra details: birds fleeing, failing power grid, rain splashes, quake dust --------
+local birds = {}
+local function spawnFlock()
+	local root = getRoot()
+	if not root then return end
+	local a = math.random() * math.pi * 2
+	local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+	local side = Vector3.new(-dir.Z, 0, dir.X)
+	local center = Vector3.new(root.Position.X, baseY + math.random(70, 130), root.Position.Z) - dir * 450 + side * math.random(-150, 150)
+	for _ = 1, 10 do
+		local wl = mkPart(Vector3.new(2.6, 0.12, 0.9), CFrame.new(), Enum.Material.SmoothPlastic, C(20, 20, 24))
+		local wr = mkPart(Vector3.new(2.6, 0.12, 0.9), CFrame.new(), Enum.Material.SmoothPlastic, C(20, 20, 24))
+		wl.Parent, wr.Parent = fx, fx
+		birds[#birds + 1] = {l = wl, r = wr, dir = dir, speed = 22 + math.random() * 10, ph = math.random() * 6, t = 0,
+			pos = center + Vector3.new(math.random(-30, 30), math.random(-10, 10), math.random(-30, 30))}
+	end
+end
+
+local lightRecs, lightCount = {}, 0
+local function scanLights()
+	local root = getRoot()
+	if not root then return end
+	overlap.FilterDescendantsInstances = {lp.Character, fx, buildFolder}
+	local parts = Workspace:GetPartBoundsInRadius(root.Position, 220, overlap)
+	for _, part in ipairs(parts) do
+		for _, ch in ipairs(part:GetChildren()) do
+			if lightCount < 80 and ch:IsA("Light") and not lightRecs[ch] then
+				lightRecs[ch] = {on = ch.Enabled}
+				lightCount += 1
+			end
+		end
+	end
+end
+
+local splashPart = mkPart(Vector3.new(70, 0.2, 70), CFrame.new())
+splashPart.Transparency = 1
+splashPart.Parent = fx
+local splashE = emitter(splashPart, {Texture = SPARK, Color = ColorSequence.new(C(220, 235, 255)),
+	Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.4), NumberSequenceKeypoint.new(1, 1.5)}),
+	Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)}),
+	Lifetime = NumberRange.new(0.25, 0.4), Speed = NumberRange.new(2, 5), SpreadAngle = Vector2.new(70, 70), LightEmission = 0.3})
+local puffPart = mkPart(Vector3.new(30, 0.2, 30), CFrame.new())
+puffPart.Transparency = 1
+puffPart.Parent = fx
+local puffE = emitter(puffPart, {Texture = SMOKE, Color = ColorSequence.new(C(135, 115, 95)),
+	Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 3), NumberSequenceKeypoint.new(1, 9)}),
+	Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1)}),
+	Lifetime = NumberRange.new(1.5, 2.5), Speed = NumberRange.new(8, 14), SpreadAngle = Vector2.new(80, 80)})
+
+local treeAcc, swayAcc, wearAcc, birdAcc, lightAcc, scanAcc, hudAcc = 0, 0, 0, 0, 0, 0, 0
+local lastBurst, finalT, surviveShown = 0, 0, false
+
+local function survivalStep(dt)
+	local t = os.clock()
+	local root = getRoot()
+	local rp = root and root.Position or startPos
+
+	-- trees keep sprouting until the core impact, then they burn
+	treeAcc += dt
+	if treeAcc > 2.2 then
+		treeAcc = 0
+		if stage < IMPACT and #trees < 60 then spawnTrees(2) end
+	end
+
+	-- trees bend and sway in the wind
+	swayAcc += dt
+	if swayAcc > 0.066 then
+		swayAcc = 0
+		local lean = math.clamp(windMag / 220, 0, 0.35)
+		local sway = math.clamp(windMag / 400, 0.005, 0.06)
+		local axis = Vector3.yAxis:Cross(wd)
+		for _, rec in ipairs(trees) do
+			if not rec.felled then
+				local dx, dz = rec.baseCF.Position.X - rp.X, rec.baseCF.Position.Z - rp.Z
+				if dx * dx + dz * dz < 90000 then
+					setTree(rec, CFrame.fromAxisAngle(axis, lean + math.sin(t * 1.4 + rec.phase) * sway))
+				end
+			end
+		end
+	end
+
+	-- fire / acid / impacts wear down exposed wood
+	wearAcc += dt
+	if wearAcc > 1 then wearAcc = 0 wearTick() end
+
+	-- placement preview
+	if buildOn then
+		local pl = placement()
+		if pl then
+			ghost.Size = pl.size
+			ghost.CFrame = pl.cf
+			ghost.Color = (pl.ok and pallets > 0) and C(80, 255, 120) or C(255, 80, 80)
+			ghost.Transparency = 0.55
+		end
+	else
+		ghost.Transparency = 1
+	end
+
+	-- birds flee before the disaster
+	birdAcc += dt
+	if birdAcc > 7 then
+		birdAcc = 0
+		if stage >= 2 and stage <= 9 and #birds < 20 then spawnFlock() end
+	end
+	for i = #birds, 1, -1 do
+		local b = birds[i]
+		b.t += dt
+		b.pos += b.dir * b.speed * dt
+		local flap = math.sin(b.t * 10 + b.ph) * 0.7
+		local base = CFrame.lookAt(b.pos, b.pos + b.dir)
+		b.l.CFrame = base * CFrame.new(-1.3, 0, 0) * CFrame.Angles(0, 0, flap)
+		b.r.CFrame = base * CFrame.new(1.3, 0, 0) * CFrame.Angles(0, 0, -flap)
+		if (b.pos - rp).Magnitude > 900 then
+			pcall(function() b.l:Destroy() b.r:Destroy() end)
+			table.remove(birds, i)
+		end
+	end
+
+	-- the power grid fails: nearby lights flicker and die from Day 3 on
+	scanAcc += dt
+	if scanAcc > 5 then scanAcc = 0 scanLights() end
+	lightAcc += dt
+	if lightAcc > 0.15 then
+		lightAcc = 0
+		local b = math.clamp((stage - 8) / 3, 0, 1)
+		for l, rec in pairs(lightRecs) do
+			if l.Parent then
+				l.Enabled = rec.on and (b <= 0 or math.random() > b * 0.92)
+			else
+				lightRecs[l] = nil
+				lightCount -= 1
+			end
+		end
+	end
+
+	-- rain splashes at your feet, dust puffs when the ground shakes
+	splashPart.CFrame = CFrame.new(rp.X, rp.Y - 3, rp.Z)
+	puffPart.CFrame = CFrame.new(rp.X, rp.Y - 3, rp.Z)
+	splashE.Rate = CONFIG.Storms and math.clamp(N.rain.Value * rainMul * (1 - coveredF) * 0.5, 0, 150) or 0
+	if burst - lastBurst > 0.35 and N.quake.Value > 0.25 then puffE:Emit(math.floor(15 + burst * 10)) end
+	lastBurst = burst
+
+	-- inventory text
+	hudAcc += dt
+	if hudAcc > 0.25 then
+		hudAcc = 0
+		invL.Text = ("WOOD %d   PALLETS %d\nPIECE: %s   LEVEL: %d (%d studs)"):format(wood, pallets, PIECES[pieceIdx], bLevel, bLevel * GR)
+	end
+
+	-- the end
+	if stage == NSTAGES then
+		finalT += dt
+		local hum = getHum()
+		if finalT > 12 and not surviveShown and hum and hum.Health > 0 then
+			surviveShown = true
+			toast("YOU SURVIVED THE END OF THE WORLD", C(120, 255, 150), 8)
+		end
+	else
+		finalT = 0
+	end
+end
+
+connect(RunService.Heartbeat, function(dt)
+	local ok, e = pcall(survivalStep, dt)
+	if not ok then report("survival", e) end
+end)
+
+survivalCleanup = function()
+	for l, rec in pairs(lightRecs) do pcall(function() l.Enabled = rec.on end) end
+end
+
+if stage < IMPACT then spawnTrees(14) end
+task.delay(2, function()
+	if running then toast("SURVIVE: chop trees, craft pallets, build walls + 3 roof layers. Height beats tsunamis.", C(230, 200, 150), 8) end
+end)
+
+--------------------------------------------------------------------
 -- APPLY A STAGE (+ the two big scripted sequences)
 --------------------------------------------------------------------
 local function applyState(s, T)
@@ -1512,6 +2059,7 @@ local function impactSequence(tok)
 	oneShot(SND.boom, 4, 0.18, 0)
 	oneShot(SND.boom, 3, 0.3, 0.6)
 	blast(55, 110, "core impact shockwave")
+    if structDamage then structDamage(nil, nil, 45) end
 	toast("CORE IMPACT", C(255, 120, 50), 4)
 end
 
@@ -1520,6 +2068,7 @@ local function applyStage(i, instant)
 	local tok = token
 	stage = i
 	if i < BREAKUP then clearDebris() end
+    if onStage then onStage(i, instant) end
 	if not instant then showBanner(i) end
 	expanded = true
 	refreshPanel()
@@ -1565,6 +2114,7 @@ local function Stop()
 	pcall(function() RunService:UnbindFromRenderStep("MoonDoomFX") end)
 	for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
 	for t in pairs(tweens) do pcall(function() t:Cancel() end) end
+	if survivalCleanup then pcall(survivalCleanup) end
 	clearFire(#fireList)
 	for i = #floaters, 1, -1 do releaseFloater(floaters[i]) end
 	for p in pairs(picked) do pcall(function() p.LocalTransparencyModifier = 0 end) end
@@ -1777,11 +2327,30 @@ local function hazardTick(step, t)
 	if not root or not hum or hum.Health <= 0 then return end
 	local s = R[stage]
 
-	-- shelter
-	local hit = Workspace:Raycast(root.Position + Vector3.new(0, 2.5, 0), Vector3.new(0, 80, 0), rayP())
-	covered = hit ~= nil
+	-- shelter: count roof layers above you and how enclosed you are
+	local rpar = rayP()
+	local layers = 0
+	local origin = root.Position + Vector3.new(0, 2.5, 0)
+	for _ = 1, 5 do
+		local hit = Workspace:Raycast(origin, Vector3.new(0, 80, 0), rpar)
+		if not hit then break end
+		layers += 1
+		origin = hit.Position + Vector3.new(0, 0.55, 0)
+	end
+	local chest = root.Position + Vector3.new(0, 1, 0)
+	local blocked = 0
+	for k = 0, 7 do
+		local a = k * math.pi / 4
+		if Workspace:Raycast(chest, Vector3.new(math.cos(a) * 9, 0, math.sin(a) * 9), rpar) then blocked += 1 end
+	end
+	layersN = layers
+	enclosure = blocked / 8
+	covered = layers > 0
 	deep = root.Position.Y < baseY - 10
-	local expo = deep and 0.05 or (covered and 0.5 or 1)
+	local layerExpo = ({[0] = 1, 0.5, 0.28, 0.15, 0.08})[math.min(layers, 4)]
+	local expo = deep and 0.05 or layerExpo
+	sealed = layers >= 1 and enclosure >= 0.75
+	if sealed and not deep then expo = expo * 0.6 end
 
 	local heat = s.heat * expo
 	local toxic = s.toxic * expo
@@ -1807,6 +2376,10 @@ local function hazardTick(step, t)
 	end
 	hazardWhy = bw
 	if dps > 0 then hurt(dps * step, bw) end
+	if hum.Health > 0 and hum.Health < hum.MaxHealth then
+		if sealed and layers >= 2 then hum.Health = math.min(hum.MaxHealth, hum.Health + 1.5 * step)
+		elseif deep then hum.Health = math.min(hum.MaxHealth, hum.Health + 1.0 * step) end
+	end
 
 	-- drowning
 	local surf = surfaceY()
@@ -1866,10 +2439,18 @@ local function heartbeat(dt)
 		end
 	end
 
-	-- wind pushes you
+	-- wind pulls you toward the storm (gusts surge; walls and bunkers shield you)
 	if CONFIG.Wind and windMag > 1 then
 		local root = getRoot()
-		if root then root:ApplyImpulse(wd * windMag * 0.55 * root.AssemblyMass * dt) end
+		if root then
+			local gust = 1 + 1.8 * math.max(0, math.noise(t * 0.22, 9.1, 0) * 2.2)
+			local exposure = deep and 0.1 or (1 - 0.85 * enclosure)
+			local accel = windMag * 1.0 * gust * exposure
+			root:ApplyImpulse(wd * accel * root.AssemblyMass * dt)
+			if windMag > 60 and exposure > 0.5 then
+				root:ApplyImpulse(Vector3.new(0, windMag * 0.1 * root.AssemblyMass * dt, 0))
+			end
+		end
 	end
 
 	-- swimming for the visual plane / tsunami bodies (real terrain water handles itself)
@@ -1940,6 +2521,7 @@ local function heartbeat(dt)
 			flash(0.55, 2.5)
 			oneShot(SND.boom, 2, 0.35, 0)
 			blast(22, 60, "shockwave")
+            if structDamage then structDamage(nil, nil, 18) end
 		end
 	end
 
@@ -1964,7 +2546,9 @@ local function heartbeat(dt)
 		end
 
 		local lines = {}
-		lines[#lines + 1] = "SHELTER: " .. (deep and "UNDERGROUND (safest)" or (covered and "COVERED (roof)" or "OUTSIDE (exposed)"))
+		local shelterTxt = deep and "UNDERGROUND (safest)" or (sealed and ("SEALED, " .. layersN .. " roof layer(s)") or (covered and ("COVERED, " .. layersN .. " layer(s), walls " .. math.floor(enclosure * 100) .. "%") or "OUTSIDE (exposed)"))
+		lines[#lines + 1] = "SHELTER: " .. shelterTxt
+		if (sealed and layersN >= 2) or deep then lines[#lines + 1] = "RESTING: you slowly heal here" end
 		if hazardDps > 0.05 then lines[#lines + 1] = ("HAZARD: %.1f dmg/s (%s)"):format(hazardDps, hazardWhy) end
 		if R[stage].thin or oxy < CONFIG.OxygenSeconds - 1 then
 			lines[#lines + 1] = ("O2 RESERVE: %d%%"):format(math.floor(oxy / CONFIG.OxygenSeconds * 100))
@@ -1988,7 +2572,7 @@ end)
 --------------------------------------------------------------------
 applyStage(stage, true)
 showBanner(stage)
-print("[MoonDoom v3] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
+print("[MoonDoom v4] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
 end
 
 local __ok, __err = xpcall(__part2, function(e) return tostring(e) .. "\n" .. debug.traceback() end)
