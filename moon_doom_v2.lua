@@ -1,5 +1,5 @@
 --[[
-	MOON COLLISION v6 - LEAD-UP + 15 DAY DOOMSDAY  (Delta compatible, client-side)
+	MOON COLLISION v7 - LEAD-UP + 15 DAY DOOMSDAY  (Delta compatible, client-side)
 
 	One stage every StageLength seconds (default 30):
 	  1 normal day | 2-5 = 5 months / 5 weeks / 1 month / 1 week before | 6-20 = Day 1 ... Day 15
@@ -38,7 +38,10 @@ local CONFIG = {
 	Rattle = true,         -- loose objects shake with quakes
 	RattleAnchored = true, -- also rattle small anchored props
 	Collapse = true,        -- strong quakes can collapse nearby buildings
-	Mining = true,          -- craft a pickaxe and mine blocks
+	Mining = true,          -- (old toggle, unused)
+	Volcanoes = true,       -- mild volcanoes, then super volcanoes
+	WideRain = true,        -- rain falls over the whole map, not just on you
+	HeldItems = true,       -- see the item in your hand
 	Fissures = true,       -- cracks open in the ground during strong quakes
 }
 
@@ -1491,6 +1494,8 @@ local ITEMS = {
 	pickaxe = {name = "Pickaxe", abbr = "PIC", col = C(150, 156, 168), tool = true},
 	raw_meat = {name = "Raw Meat", abbr = "RAW", col = C(205, 95, 95), food = 4},
 	cooked_meat = {name = "Steak", abbr = "CKD", col = C(135, 72, 42), food = 30},
+	torch = {name = "Torch", abbr = "TRC", col = C(255, 170, 60)},
+	lantern = {name = "Lantern", abbr = "LAN", col = C(255, 210, 110), tool = true},
 }
 local BLOCK = {
 	log = {mat = Enum.Material.Wood, col = C(110, 75, 45), hp = 140},
@@ -1508,6 +1513,8 @@ local RECIPES = {
 	{cost = {{"planks", 2}}, out = {"stick", 4}},
 	{cost = {{"planks", 3}, {"stick", 2}}, out = {"pickaxe", 1}},
 	{cost = {{"stone", 5}}, out = {"furnace", 1}},
+	{cost = {{"stone", 1}, {"stick", 1}}, out = {"torch", 1}},
+	{cost = {{"stone", 5}}, out = {"lantern", 1}},
 }
 
 local inv = {}
@@ -1570,7 +1577,7 @@ local function addItem(id, n)
 	for i = 1, 36 do
 		if not inv[i] then
 			local add = math.min(n, maxn)
-			inv[i] = {id = id, n = add}
+			inv[i] = {id = id, n = add, lit = (id == "lantern") or nil}
 			n -= add
 			if n <= 0 then return 0 end
 		end
@@ -2460,44 +2467,16 @@ occ.FilterType = Enum.RaycastFilterType.Exclude
 
 local function snapC(v) return math.floor(v / CELL) * CELL + CELL / 2 end
 
-local function placeBlock()
-	local s = inv[sel]
-	if not s or not ITEMS[s.id].block then
-		toast("Select a block (log, planks, stone or furnace) to place", C(255, 200, 120), 1.8)
-		return
-	end
-	local res = aim(14)
+local function placeAt(c, s, tol)
 	local root = getRoot()
-	if not res or not root then return end
-	local n = res.Normal
-	local inst = res.Instance
-	local c
-	local bi = blockInfo[inst]
-	if bi then
-		local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
-		local d
-		if ax >= ay and ax >= az then d = Vector3.new(n.X > 0 and 1 or -1, 0, 0)
-		elseif ay >= az then d = Vector3.new(0, n.Y > 0 and 1 or -1, 0)
-		else d = Vector3.new(0, 0, n.Z > 0 and 1 or -1) end
-		c = inst.Position + d * CELL
-	else
-		local pt = res.Position + n * (CELL / 2)
-		local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
-		if ax >= ay and ax >= az then c = Vector3.new(pt.X, snapC(pt.Y), snapC(pt.Z))
-		elseif ay >= az then c = Vector3.new(snapC(pt.X), pt.Y, snapC(pt.Z))
-		else c = Vector3.new(snapC(pt.X), snapC(pt.Y), pt.Z) end
-	end
+	if not root then return false, "No character" end
 	local rp = root.Position
-	if math.abs(c.X - rp.X) < 3.4 and math.abs(c.Z - rp.Z) < 3.4 and c.Y - 2 < rp.Y + 2.5 and c.Y + 2 > rp.Y - 3.2 then
-		toast("You are in the way", C(255, 200, 120), 1.2)
-		return
+	if math.abs(c.X - rp.X) < 3.4 and math.abs(c.Z - rp.Z) < 3.4 and c.Y - 2 < rp.Y + 2.5 and c.Y + 2 > rp.Y - 3 + (tol or 0.2) then
+		return false, "You are in the way"
 	end
 	occ.FilterDescendantsInstances = {lp.Character, fx, dropFolder, animalFolder}
 	for _, h in ipairs(Workspace:GetPartBoundsInBox(CFrame.new(c), Vector3.new(3, 3, 3), occ)) do
-		if h.CanCollide then
-			toast("Something is already there", C(255, 200, 120), 1.2)
-			return
-		end
+		if h.CanCollide then return false, "Something is already there" end
 	end
 	local kind = s.id
 	local p = newBlock(c, kind, buildFolder)
@@ -2518,6 +2497,73 @@ local function placeBlock()
 	if s.n <= 0 then inv[sel] = false end
 	oneShot(SND.pop, 0.8, 0.6, 0)
 	refreshUI()
+	return true
+end
+
+-- EASY FLOORS: places a block right under your feet (even in mid air - no momentum needed),
+-- or one block ahead of you (bridge / step) when you are standing
+local function placeFloor()
+	local s = inv[sel]
+	if not s or not ITEMS[s.id].block then
+		toast("Select a block (log, planks, stone or furnace) first", C(255, 200, 120), 1.8)
+		return
+	end
+	local root = getRoot()
+	if not root then return end
+	local p = root.Position
+	local feetY = p.Y - 3
+	local lk = root.CFrame.LookVector
+	local fwd = Vector3.new(lk.X, 0, lk.Z)
+	if fwd.Magnitude < 0.05 then fwd = Vector3.new(0, 0, -1) end
+	fwd = fwd.Unit
+	local ahead = p + fwd * CELL
+	local cands = {
+		Vector3.new(snapC(p.X), feetY - 2.15, snapC(p.Z)),
+		Vector3.new(snapC(ahead.X), feetY - 2.15, snapC(ahead.Z)),
+		Vector3.new(snapC(ahead.X), feetY + 1.85, snapC(ahead.Z)),
+	}
+	local why = "Nowhere to place that"
+	for _, c in ipairs(cands) do
+		local ok, msg = placeAt(c, s, 0.4)
+		if ok then return end
+		why = msg or why
+	end
+	toast(why, C(255, 200, 120), 1.2)
+end
+
+local function placeBlock()
+	local s = inv[sel]
+	if not s or not ITEMS[s.id].block then
+		toast("Select a block (log, planks, stone or furnace) to place", C(255, 200, 120), 1.8)
+		return
+	end
+	local res = aim(14)
+	local root = getRoot()
+	if not root then return end
+	if not res then
+		placeFloor()
+		return
+	end
+	local n = res.Normal
+	local inst = res.Instance
+	local c
+	local bi = blockInfo[inst]
+	if bi then
+		local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
+		local d
+		if ax >= ay and ax >= az then d = Vector3.new(n.X > 0 and 1 or -1, 0, 0)
+		elseif ay >= az then d = Vector3.new(0, n.Y > 0 and 1 or -1, 0)
+		else d = Vector3.new(0, 0, n.Z > 0 and 1 or -1) end
+		c = inst.Position + d * CELL
+	else
+		local pt = res.Position + n * (CELL / 2)
+		local ax, ay, az = math.abs(n.X), math.abs(n.Y), math.abs(n.Z)
+		if ax >= ay and ax >= az then c = Vector3.new(pt.X, snapC(pt.Y), snapC(pt.Z))
+		elseif ay >= az then c = Vector3.new(snapC(pt.X), pt.Y, snapC(pt.Z))
+		else c = Vector3.new(snapC(pt.X), snapC(pt.Y), pt.Z) end
+	end
+	local ok = placeAt(c, s, 0.2)
+	if not ok then placeFloor() end
 end
 
 local function useAction()
@@ -2541,14 +2587,24 @@ local function useAction()
 		else
 			toast("You are not hurt", C(255, 200, 120), 1.2)
 		end
+	elseif s and s.id == "lantern" then
+		if s.lit then
+			toast("The lantern is already lit", C(255, 200, 120), 1.4)
+		elseif takeItem("stick", 1) then
+			s.lit = true
+			toast("Lantern refueled with a stick", C(255, 220, 140), 1.8)
+			refreshUI()
+		else
+			toast("The lantern is out of fuel - refuel it with 1 stick", C(255, 200, 120), 2)
+		end
 	else
-		toast("Aim at a furnace to use it, or select food to eat", C(255, 200, 120), 1.5)
+		toast("Aim at a furnace to use it, select food to eat, or refuel a lantern", C(255, 200, 120), 1.5)
 	end
 end
 
 -- action buttons (right side) + keyboard
-local function actBtn(text, y, down, up, click)
-	local b = mk("TextButton", {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, y, 0), Size = UDim2.new(0, 74, 0, 42), BackgroundColor3 = C(70, 70, 76),
+local function actBtn(text, y, down, up, click, xoff)
+	local b = mk("TextButton", {AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10 - (xoff or 0), y, 0), Size = UDim2.new(0, 74, 0, 42), BackgroundColor3 = C(70, 70, 76),
 		BackgroundTransparency = 0.15, BorderSizePixel = 0, Text = text, Font = Enum.Font.Arcade, TextSize = 15, TextColor3 = Color3.new(1, 1, 1), ZIndex = 12}, gui)
 	mk("UIStroke", {Color = C(20, 20, 24), Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, b)
 	if down then connect(b.MouseButton1Down, down) end
@@ -2565,6 +2621,7 @@ actBtn("INV", 0.27, nil, nil, toggleInv)
 actBtn("BREAK", 0.39, function() holding = true end, function() holding = false end)
 actBtn("PLACE", 0.51, nil, nil, placeBlock)
 actBtn("USE", 0.63, nil, nil, useAction)
+actBtn("FLOOR", 0.51, nil, nil, placeFloor, 84)
 
 local KEYNUM = {[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5,
 	[Enum.KeyCode.Six] = 6, [Enum.KeyCode.Seven] = 7, [Enum.KeyCode.Eight] = 8, [Enum.KeyCode.Nine] = 9}
@@ -2577,6 +2634,7 @@ connect(UIS.InputBegan, function(input, gp)
 		if k == Enum.KeyCode.E then toggleInv()
 		elseif k == Enum.KeyCode.Q then placeBlock()
 		elseif k == Enum.KeyCode.F then useAction()
+		elseif k == Enum.KeyCode.G then placeFloor()
 		elseif KEYNUM[k] then
 			sel = KEYNUM[k]
 			showSelName()
@@ -2653,6 +2711,10 @@ end
 
 -- exports for part 4
 SV.hideOrig = hideOrig
+SV.ITEMS = ITEMS
+SV.getHeldSlot = function() return inv[sel] end
+SV.isHolding = function() return holding end
+SV.refreshUI = function() refreshUI() end
 SV.makePiece = makePiece
 SV.subtractBox = subtractBox
 SV.minedOrig = minedOrig
@@ -2810,6 +2872,13 @@ for i = 1, 12 do
 		p.Parent = fx
 		c.parts[k] = {part = p, ox = (math.random() - 0.5) * 90, oz = (math.random() - 0.5) * 90, oy = (math.random() - 0.5) * 14}
 	end
+	c.drops = {}
+	for j = 1, 10 do
+		local dp = sphere(mkPart(Vector3.new(0.28, 0.28, 6), CFrame.new(0, -1000, 0), Enum.Material.Neon, C(190, 210, 240)))
+		dp.Transparency = 1
+		dp.Parent = fx
+		c.drops[j] = {part = dp, ox = (math.random() - 0.5) * 110, oz = (math.random() - 0.5) * 110, ph = math.random()}
+	end
 	clouds[i] = c
 end
 local function updateClouds(dt, rp)
@@ -2827,12 +2896,31 @@ local function updateClouds(dt, rp)
 			q.part.Color = col
 			q.part.CFrame = CFrame.new(c.x + q.ox, rp.Y + c.y + q.oy, c.z + q.oz)
 		end
+		if c.drops then
+			local rs = math.clamp((N.rain.Value * rainMul + N.acid.Value + N.molten.Value * 0.5) / 160, 0, 1)
+			local tn = os.clock()
+			local top = rp.Y + c.y - 12
+			local bottom = rp.Y - 4
+			local fall = top - bottom
+			for _, d in ipairs(c.drops) do
+				if rs < 0.05 then
+					d.part.Transparency = 1
+				else
+					local u = (tn * 0.85 + d.ph) % 1
+					local slx, slz = wd.X * windMag * 0.9, wd.Z * windMag * 0.9
+					local pos = Vector3.new(c.x + d.ox + slx * u * fall / 115, top - fall * u, c.z + d.oz + slz * u * fall / 115)
+					d.part.Color = rainColLast or C(190, 210, 240)
+					d.part.Transparency = 0.5 - rs * 0.2
+					d.part.CFrame = CFrame.lookAt(pos, pos + Vector3.new(slx, -115, slz))
+				end
+			end
+		end
 	end
 end
 
 local puddles = {}
 local function spawnPuddle(rp)
-	local ang, d = math.random() * math.pi * 2, math.random(4, 55)
+	local ang, d = math.random() * math.pi * 2, math.random(4, 110)
 	local x, z = rp.X + math.cos(ang) * d, rp.Z + math.sin(ang) * d
 	local hit = Workspace:Raycast(Vector3.new(x, rp.Y + 10, z), Vector3.new(0, -60, 0), rayP())
 	if not hit or hit.Normal.Y < 0.92 then return end
@@ -2848,7 +2936,7 @@ local function spawnPuddle(rp)
 end
 
 local function spawnSplash(rp)
-	local ang, d = math.random() * math.pi * 2, math.random(2, 26)
+	local ang, d = math.random() * math.pi * 2, math.random(2, 90)
 	local x, z = rp.X + math.cos(ang) * d, rp.Z + math.sin(ang) * d
 	local hit = Workspace:Raycast(Vector3.new(x, rp.Y + 6, z), Vector3.new(0, -40, 0), rayP())
 	if not hit then return end
@@ -3293,7 +3381,7 @@ local function coreAndSplit()
 						cfs[#cfs + 1] = m.base + Vector3.new(m.side * off, 0, 0)
 					end
 				end
-				if #list > 0 then Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireNoEvents) end
+				if #list > 0 then Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged) end
 				local r = getRoot()
 				if r then r.CFrame = r.CFrame + Vector3.new(startSide * (off - lastOff), 0, 0) end
 				lastOff = off
@@ -3374,7 +3462,7 @@ local function extraStep(dt)
 		accPud = 0
 		local raining = CONFIG.Storms and (N.rain.Value * (1 - coveredF)) > 40
 		if raining then
-			if #puddles < 22 then spawnPuddle(rp) spawnPuddle(rp) end
+			if #puddles < 34 then spawnPuddle(rp) spawnPuddle(rp) end
 		elseif #puddles > 0 then
 			local old = table.remove(puddles, 1)
 			tw(old.part, {Transparency = 1}, 3)
@@ -3382,7 +3470,7 @@ local function extraStep(dt)
 		end
 	end
 	if CONFIG.Storms then
-		splashAcc = math.min(splashAcc + math.clamp(N.rain.Value * rainMul * (1 - coveredF) * 0.12, 0, 22) * dt, 6)
+		splashAcc = math.min(splashAcc + math.clamp(N.rain.Value * rainMul * (1 - coveredF) * 0.2, 0, 34) * dt, 10)
 		while splashAcc >= 1 do
 			splashAcc -= 1
 			spawnSplash(rp)
@@ -3428,6 +3516,550 @@ end
 end
 local ok4, e4 = pcall(__part4)
 if not ok4 then report("startup (disasters/extras)", e4) end
+
+--------------------------------------------------------------------
+-- PART 5: volcanoes (mild, then super), rain over the whole map,
+--         held items in first person, torch + lantern
+--------------------------------------------------------------------
+local function __part5()
+
+local volcanoes, bombs, flows = {}, {}, {}
+SV.ashBoost = 0
+local nextMild, nextSuper = os.clock() + 4, 0
+
+local function groundAt(x, z)
+	local hit = Workspace:Raycast(Vector3.new(x, baseY + 400, z), Vector3.new(0, -1200, 0), rayP())
+	if not hit then return nil end
+	local inst = hit.Instance
+	if inst:IsA("Terrain") or (inst.Size.X >= 60 and inst.Size.Z >= 60) then return hit.Position.Y end
+	return nil
+end
+
+local function lavaBomb(rec, target)
+	local start = Vector3.new(rec.x, rec.top + 2, rec.z)
+	local size = math.random(3, rec.super and 12 or 6)
+	local p = sphere(mkPart(Vector3.new(size, size, size), CFrame.new(start), Enum.Material.Neon, C(255, math.random(80, 140), 20)))
+	local a0 = Instance.new("Attachment", p)
+	a0.Position = Vector3.new(0, size * 0.5, 0)
+	local a1 = Instance.new("Attachment", p)
+	a1.Position = Vector3.new(0, -size * 0.5, 0)
+	local tr = Instance.new("Trail")
+	tr.Attachment0, tr.Attachment1 = a0, a1
+	tr.Lifetime = 1.2
+	tr.Color = ColorSequence.new(C(255, 170, 60), C(120, 20, 0))
+	tr.Transparency = NumberSequence.new(0.1, 1)
+	tr.LightEmission = 1
+	tr.Parent = p
+	p.Parent = fx
+	local gy = groundAt(target.X, target.Z) or rec.gy
+	local tgt = Vector3.new(target.X, gy, target.Z)
+	bombs[#bombs + 1] = {part = p, start = start, tgt = tgt, flight = 3 + math.random() * 2.5, t = 0,
+		arc = 90 + (tgt - start).Magnitude * 0.22, size = size}
+end
+
+local function startPlume(rec)
+	local pt = mkPart(Vector3.new(rec.craterR, 1, rec.craterR), CFrame.new(rec.x, rec.top + 1, rec.z))
+	pt.Transparency = 1
+	pt.Parent = fx
+	rec.plume = pt
+	local sup = rec.super
+	rec.smoke = emitter(pt, {Texture = SMOKE, Color = ColorSequence.new(sup and C(55, 50, 50) or C(95, 88, 85)),
+		Size = NumberSequence.new({NumberSequenceKeypoint.new(0, sup and 25 or 8), NumberSequenceKeypoint.new(1, sup and 90 or 22)}),
+		Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)}),
+		Lifetime = NumberRange.new(7, 11), Speed = NumberRange.new(sup and 40 or 14, sup and 70 or 24),
+		SpreadAngle = Vector2.new(12, 12), Rate = sup and 35 or 10, RotSpeed = NumberRange.new(-20, 20)})
+	rec.sparks = emitter(pt, {Texture = SPARK, Color = ColorSequence.new(C(255, 160, 60), C(255, 60, 0)),
+		Size = NumberSequence.new(sup and 2 or 0.9), LightEmission = 1, Lifetime = NumberRange.new(2, 4),
+		Speed = NumberRange.new(20, 50), SpreadAngle = Vector2.new(25, 25), Rate = sup and 40 or 14, Acceleration = Vector3.new(0, -30, 0)})
+end
+
+local function buildVolcano(super, x, z, gy)
+	local layers = super and 20 or 10
+	local layerH = super and 7 or 5
+	local baseR = super and 250 or 70
+	local topR = super and 70 or 16
+	local totalH = layers * layerH
+	local rec = {super = super, x = x, z = z, gy = gy, top = gy + totalH, craterR = topR * 0.75, bombT = os.clock() + 12, erupted = false}
+	local rad = {}
+	for i = 1, layers do
+		local k = (i - 1) / (layers - 1)
+		local r = baseR + (topR - baseR) * k
+		rad[i] = r
+		local y = gy + (i - 0.5) * layerH
+		local s = math.random(34, 52)
+		local p = mkPart(Vector3.new(layerH + 0.1, r * 2, r * 2), CFrame.new(x, y - totalH - 4, z) * CFrame.Angles(0, 0, math.pi / 2),
+			Enum.Material.Basalt, C(s, s - 6, s - 8))
+		p.Shape = Enum.PartType.Cylinder
+		p.CanCollide = true
+		p.Parent = fx
+		tw(p, {CFrame = CFrame.new(x, y, z) * CFrame.Angles(0, 0, math.pi / 2)}, 8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	end
+	-- lava rivers running down the flanks, appearing one after another
+	local nflows = super and 4 or 3
+	local stepi = super and 2 or 1
+	for f = 1, nflows do
+		local ang = math.random() * math.pi * 2
+		local dir = Vector3.new(math.cos(ang), 0, math.sin(ang))
+		local strips = {}
+		for i = layers, 1, -stepi do
+			local r = rad[i] + 0.4
+			local y = gy + (i - 0.5) * layerH
+			local pos = Vector3.new(x + dir.X * r, y, z + dir.Z * r)
+			local st = mkPart(Vector3.new(3, layerH * 1.9, 0.8), CFrame.lookAt(pos - Vector3.new(0, totalH + 4, 0), pos - Vector3.new(0, totalH + 4, 0) + dir),
+				Enum.Material.Neon, C(255, 95, 15))
+			st.Transparency = 1
+			st.Parent = fx
+			tw(st, {CFrame = CFrame.lookAt(pos, pos + dir)}, 8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			strips[#strips + 1] = st
+		end
+		task.delay(8 + f * 2.5, function()
+			for k2, st in ipairs(strips) do
+				task.delay(k2 * 0.25, function()
+					if running then tw(st, {Transparency = 0.12}, 1.5) end
+				end)
+			end
+		end)
+	end
+	-- glowing crater
+	local lava = mkPart(Vector3.new(1.5, rec.craterR * 2, rec.craterR * 2), CFrame.new(x, rec.top + 0.4 - totalH - 4, z) * CFrame.Angles(0, 0, math.pi / 2),
+		Enum.Material.Neon, C(255, 90, 10))
+	lava.Shape = Enum.PartType.Cylinder
+	lava.Parent = fx
+	tw(lava, {CFrame = CFrame.new(x, rec.top + 0.4, z) * CFrame.Angles(0, 0, math.pi / 2)}, 8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local pl = Instance.new("PointLight")
+	pl.Color = C(255, 110, 30)
+	pl.Range = 120
+	pl.Brightness = 4
+	pl.Parent = lava
+	return rec
+end
+
+local function eruptSuper(rec)
+	if rec.erupted or not running then return end
+	rec.erupted = true
+	rec.eruptT = os.clock()
+	toast("THE SUPERVOLCANO ERUPTS!", C(255, 120, 50), 5)
+	flash(0.55, 3)
+	burst += 3.5
+	oneShot(SND.boom, 3, 0.2, 0)
+	oneShot(SND.boom, 2, 0.35, 1.2)
+	if rec.smoke then rec.smoke.Rate = 220 end
+	if rec.sparks then rec.sparks.Rate = 160 end
+	-- mushroom cloud
+	for i = 1, 16 do
+		local d = math.random(40, 80)
+		local p = sphere(mkPart(Vector3.new(d, d * 0.8, d), CFrame.new(rec.x, rec.top, rec.z), Enum.Material.SmoothPlastic, C(50, 46, 46)))
+		p.Transparency = 0.2
+		p.Parent = fx
+		local up = 250 + math.random() * 250
+		local dx = (math.random() - 0.5) * 200 + wd.X * 80
+		local dz = (math.random() - 0.5) * 200 + wd.Z * 80
+		local grow = d * (3 + math.random() * 2)
+		tw(p, {CFrame = CFrame.new(rec.x + dx, rec.top + up, rec.z + dz), Size = Vector3.new(grow, grow * 0.7, grow)}, 16 + math.random() * 6)
+		task.delay(30 + math.random() * 10, function()
+			if running then tw(p, {Transparency = 1}, 15) end
+			task.delay(16, function() pcall(function() p:Destroy() end) end)
+		end)
+	end
+	-- pyroclastic flow rolling out over the ground
+	local disc = mkPart(Vector3.new(14, 20, 20), CFrame.new(rec.x, rec.gy + 8, rec.z) * CFrame.Angles(0, 0, math.pi / 2),
+		Enum.Material.SmoothPlastic, C(60, 55, 55))
+	disc.Shape = Enum.PartType.Cylinder
+	disc.Transparency = 0.45
+	disc.Parent = fx
+	flows[#flows + 1] = {x = rec.x, z = rec.z, gy = rec.gy, r = rec.craterR * 2, maxR = 520, part = disc, hit = false}
+	-- lava bomb barrage
+	task.spawn(function()
+		for i = 1, 30 do
+			if not running then return end
+			task.wait(0.8)
+			local a, d = math.random() * math.pi * 2, math.random(120, 550)
+			local target = Vector3.new(rec.x + math.cos(a) * d, 0, rec.z + math.sin(a) * d)
+			local root = getRoot()
+			if root and math.random() < 0.25 and (Vector3.new(root.Position.X - rec.x, 0, root.Position.Z - rec.z)).Magnitude < 650 then
+				target = Vector3.new(root.Position.X + math.random(-40, 40), 0, root.Position.Z + math.random(-40, 40))
+			end
+			lavaBomb(rec, target)
+		end
+	end)
+end
+
+local function spawnVolcano(super)
+	local root = getRoot()
+	if not root then return end
+	for _ = 1, 8 do
+		local ang = math.random() * math.pi * 2
+		local dist = super and math.random(350, 800) or math.random(220, 600)
+		local x = root.Position.X + math.cos(ang) * dist
+		local z = root.Position.Z + math.sin(ang) * dist
+		local ok = true
+		for _, v in ipairs(volcanoes) do
+			if Vector3.new(x - v.x, 0, z - v.z).Magnitude < 330 then ok = false break end
+		end
+		if ok then
+			local gy = groundAt(x, z)
+			local surf = surfaceY()
+			if gy and not (surf and gy < surf) then
+				local rec = buildVolcano(super, x, z, gy)
+				volcanoes[#volcanoes + 1] = rec
+				toast(super and "THE GROUND BULGES - A SUPERVOLCANO IS FORMING!" or "A volcano is rising out of the ground...", C(255, 150, 70), 5)
+				burst += super and 2 or 1
+				oneShot(SND.boom, 1.4, 0.2, 0)
+				task.delay(7.5, function() if running then startPlume(rec) end end)
+				if super then task.delay(16, function() eruptSuper(rec) end) end
+				return
+			end
+		end
+	end
+end
+
+local function volcStep(dt)
+	local now = os.clock()
+	local root = getRoot()
+	local rp = root and root.Position or startPos
+
+	if CONFIG.Volcanoes then
+		local mildN, superN = 0, 0
+		for _, v in ipairs(volcanoes) do
+			if v.super then superN += 1 else mildN += 1 end
+		end
+		if stage >= 6 and stage <= 11 and mildN < 3 and now > nextMild then
+			nextMild = now + 25 + math.random() * 15
+			spawnVolcano(false)
+		end
+		if stage >= 12 and superN < 2 and now > nextSuper then
+			nextSuper = now + 55 + math.random() * 35
+			spawnVolcano(true)
+		end
+	end
+
+	local boost = 0
+	for _, v in ipairs(volcanoes) do
+		if v.plume then
+			if not v.erupted and now > v.bombT then
+				v.bombT = now + (v.super and 14 or (7 + math.random() * 7))
+				local a, d = math.random() * math.pi * 2, math.random(40, 180)
+				lavaBomb(v, Vector3.new(v.x + math.cos(a) * d, 0, v.z + math.sin(a) * d))
+			end
+			local d = Vector3.new(rp.X - v.x, 0, rp.Z - v.z).Magnitude
+			if d < v.craterR and rp.Y > v.top - 8 then hurt(30 * dt, "volcano lava", true) end
+			if v.erupted then
+				local age = now - v.eruptT
+				boost = math.max(boost, 200 * math.clamp(1 - age / 90, 0, 1) * math.clamp(1 - d / 900, 0, 1))
+				if age > 90 and v.smoke then
+					v.smoke.Rate = 35
+					v.sparks.Rate = 40
+				end
+			end
+		end
+	end
+	SV.ashBoost = boost
+
+	for i = #bombs, 1, -1 do
+		local b = bombs[i]
+		b.t += dt
+		local u = math.min(1, b.t / b.flight)
+		b.part.Position = b.start:Lerp(b.tgt, u) + Vector3.new(0, 4 * b.arc * u * (1 - u), 0)
+		if u >= 1 then
+			impact(b.tgt, b.size)
+			pcall(function() b.part:Destroy() end)
+			table.remove(bombs, i)
+		end
+	end
+
+	for i = #flows, 1, -1 do
+		local f = flows[i]
+		f.r += 55 * dt
+		local dd = math.min(2048, f.r * 2)
+		f.part.Size = Vector3.new(14, dd, dd)
+		f.part.Transparency = 0.45 + 0.5 * math.min(1, f.r / f.maxR)
+		if not f.hit and root then
+			local dist = Vector3.new(rp.X - f.x, 0, rp.Z - f.z).Magnitude
+			if math.abs(dist - f.r) < 35 and rp.Y - 3 < f.gy + 28 then
+				f.hit = true
+				blast(35, 70, "pyroclastic flow")
+			end
+		end
+		if f.r >= f.maxR then
+			pcall(function() f.part:Destroy() end)
+			table.remove(flows, i)
+		end
+	end
+end
+
+connect(RunService.Heartbeat, function(dt)
+	local ok, e = pcall(volcStep, dt)
+	if not ok then report("volcanoes", e) end
+end)
+
+---------------- rain over the whole map ----------------
+local WIDE = 180
+local wideParts, widePos = {}, {}
+local veils = {}
+local widShown = 0
+if CONFIG.WideRain then
+	for i = 1, WIDE do
+		local p = sphere(mkPart(Vector3.new(0.3, 0.3, 8), CFrame.new(0, -1000, 0), Enum.Material.Neon, C(190, 210, 240)))
+		p.Transparency = 1
+		p.Parent = fx
+		wideParts[i] = p
+		widePos[i] = {x = 0, y = 0, z = 0}
+	end
+	for i = 1, 16 do
+		local p = mkPart(Vector3.new(150, 170, 0.3), CFrame.new(0, -1000, 0), Enum.Material.Neon, C(190, 210, 240))
+		p.Transparency = 1
+		p.Parent = fx
+		veils[i] = {part = p, x = 0, z = 0, ph = math.random() * 6, init = false}
+	end
+end
+
+local function wideRain(dt)
+	local cam = Workspace.CurrentCamera
+	if not cam or not CONFIG.WideRain then return end
+	local cp = cam.CFrame.Position
+	local t = os.clock()
+	local inten = N.rain.Value * rainMul + N.acid.Value + N.molten.Value * 0.6
+	if not CONFIG.Storms then inten = N.acid.Value + N.molten.Value * 0.6 end
+	local active = math.clamp(math.floor(inten * 0.8), 0, WIDE)
+	local col = rainColLast or C(190, 210, 240)
+
+	if active > widShown then
+		for i = widShown + 1, active do
+			local a, r = math.random() * math.pi * 2, 55 + math.random() * 275
+			widePos[i].x = cp.X + math.cos(a) * r
+			widePos[i].z = cp.Z + math.sin(a) * r
+			widePos[i].y = cp.Y + math.random() * 90 - 25
+			wideParts[i].Color = col
+			wideParts[i].Transparency = 0.45
+		end
+	elseif active < widShown then
+		for i = active + 1, widShown do wideParts[i].Transparency = 1 end
+	end
+	widShown = active
+
+	if active > 0 then
+		local vx, vy, vz = wd.X * windMag * 0.9, -115, wd.Z * windMag * 0.9
+		local list, cfs = {}, {}
+		for i = 1, active do
+			local d = widePos[i]
+			d.x += vx * dt
+			d.y += vy * dt
+			d.z += vz * dt
+			local dx, dz = d.x - cp.X, d.z - cp.Z
+			if d.y < cp.Y - 30 or dx * dx + dz * dz > 340 * 340 then
+				local a, r = math.random() * math.pi * 2, 55 + math.random() * 275
+				d.x = cp.X + math.cos(a) * r
+				d.z = cp.Z + math.sin(a) * r
+				d.y = cp.Y + 40 + math.random() * 60
+			end
+			list[i] = wideParts[i]
+			cfs[i] = CFrame.lookAt(Vector3.new(d.x, d.y, d.z), Vector3.new(d.x + vx, d.y + vy, d.z + vz))
+		end
+		Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+	end
+
+	-- distant rain veils
+	local strength = math.clamp(inten / 160, 0, 1)
+	for _, v in ipairs(veils) do
+		if strength < 0.05 then
+			v.part.Transparency = 1
+		else
+			local dx, dz = v.x - cp.X, v.z - cp.Z
+			if not v.init or dx * dx + dz * dz > 760 * 760 then
+				local a, r = math.random() * math.pi * 2, 160 + math.random() * 540
+				v.x = cp.X + math.cos(a) * r
+				v.z = cp.Z + math.sin(a) * r
+				v.init = true
+			end
+			v.x += wd.X * windMag * 0.3 * dt
+			v.z += wd.Z * windMag * 0.3 * dt
+			local pos = Vector3.new(v.x, cp.Y + 55, v.z)
+			v.part.Color = col:Lerp(C(120, 125, 135), 0.4)
+			v.part.Transparency = 1 - strength * 0.14 * (0.7 + 0.3 * math.sin(t * 3 + v.ph))
+			v.part.CFrame = CFrame.lookAt(pos, Vector3.new(cp.X, pos.Y, cp.Z))
+		end
+	end
+end
+
+if CONFIG.WideRain then
+	RunService:BindToRenderStep("MoonDoomWide", Enum.RenderPriority.Camera.Value + 3, function(dt)
+		local ok, e = pcall(wideRain, dt)
+		if not ok then report("wide rain", e) end
+	end)
+end
+
+---------------- held items (first person) + torch + lantern ----------------
+local ITEMSV = SV.ITEMS or {}
+local heldParts, heldId, heldLit = {}, nil, nil
+local heldLight, heldFire, heldCore
+local swayV = Vector3.zero
+local lastLook = Vector3.new(0, 0, -1)
+local blinkUntil, lastBurstL = 0, 0
+
+local function clearHeld()
+	for _, hp in ipairs(heldParts) do pcall(function() hp.part:Destroy() end) end
+	heldParts = {}
+	heldLight, heldFire, heldCore = nil, nil, nil
+end
+
+local function addHP(size, rel, col, mat)
+	local p = mkPart(size, CFrame.new(), mat or Enum.Material.SmoothPlastic, col)
+	p.Parent = fx
+	heldParts[#heldParts + 1] = {part = p, rel = rel}
+	return p
+end
+
+local function buildHeld(id, slot)
+	clearHeld()
+	heldId = id
+	heldLit = nil
+	if not id then return end
+	local d = ITEMSV[id] or {col = C(200, 200, 200)}
+	if id == "log" or id == "planks" or id == "stone" or id == "furnace" then
+		local mat = (id == "log") and Enum.Material.Wood or ((id == "planks") and Enum.Material.WoodPlanks or Enum.Material.Cobblestone)
+		addHP(Vector3.new(1.1, 1.1, 1.1), CFrame.new(), d.col, mat)
+	elseif id == "stick" then
+		addHP(Vector3.new(0.18, 1.7, 0.18), CFrame.Angles(0, 0, math.rad(20)), d.col, Enum.Material.Wood)
+	elseif id == "pickaxe" then
+		addHP(Vector3.new(0.2, 2.1, 0.2), CFrame.new(), C(120, 85, 50), Enum.Material.Wood)
+		addHP(Vector3.new(1.5, 0.3, 0.3), CFrame.new(0, 1.0, 0), d.col, Enum.Material.Metal)
+		addHP(Vector3.new(0.3, 0.3, 0.3), CFrame.new(0.85, 0.85, 0) * CFrame.Angles(0, 0, math.rad(-30)), d.col, Enum.Material.Metal)
+		addHP(Vector3.new(0.3, 0.3, 0.3), CFrame.new(-0.85, 0.85, 0) * CFrame.Angles(0, 0, math.rad(30)), d.col, Enum.Material.Metal)
+	elseif id == "raw_meat" or id == "cooked_meat" then
+		sphere(addHP(Vector3.new(0.95, 0.8, 1.2), CFrame.new(), d.col, Enum.Material.SmoothPlastic))
+		addHP(Vector3.new(0.14, 0.14, 0.8), CFrame.new(0, 0.05, -0.85), C(240, 240, 230), Enum.Material.SmoothPlastic)
+	elseif id == "torch" then
+		addHP(Vector3.new(0.22, 1.7, 0.22), CFrame.new(), C(120, 85, 50), Enum.Material.Wood)
+		local tip = addHP(Vector3.new(0.34, 0.34, 0.34), CFrame.new(0, 0.95, 0), C(40, 30, 25), Enum.Material.SmoothPlastic)
+		local f = Instance.new("Fire")
+		f.Size = 2.2
+		f.Heat = 6
+		f.Color = C(255, 170, 60)
+		f.SecondaryColor = C(255, 60, 10)
+		f.Parent = tip
+		local l = Instance.new("PointLight")
+		l.Range = 28
+		l.Brightness = 2.6
+		l.Color = C(255, 170, 80)
+		l.Parent = tip
+		heldLight, heldFire = l, f
+	elseif id == "lantern" then
+		local lit = slot and slot.lit and true or false
+		heldLit = slot and slot.lit
+		local metal = C(35, 32, 30)
+		addHP(Vector3.new(0.7, 0.1, 0.7), CFrame.new(0, -0.95, 0), metal, Enum.Material.Metal)
+		addHP(Vector3.new(0.7, 0.1, 0.7), CFrame.new(0, -0.25, 0), metal, Enum.Material.Metal)
+		for _, sx in ipairs({-1, 1}) do
+			for _, sz in ipairs({-1, 1}) do
+				addHP(Vector3.new(0.07, 0.7, 0.07), CFrame.new(sx * 0.3, -0.6, sz * 0.3), metal, Enum.Material.Metal)
+			end
+		end
+		addHP(Vector3.new(0.5, 0.06, 0.06), CFrame.new(0, 0.1, 0), metal, Enum.Material.Metal)
+		local core = addHP(Vector3.new(0.42, 0.5, 0.42), CFrame.new(0, -0.6, 0), lit and C(255, 200, 100) or C(70, 60, 50),
+			lit and Enum.Material.Neon or Enum.Material.Glass)
+		local l = Instance.new("PointLight")
+		l.Range = 34
+		l.Brightness = 3.4
+		l.Color = C(255, 190, 100)
+		l.Enabled = lit
+		l.Parent = core
+		heldLight, heldCore = l, core
+	end
+end
+
+local function heldStep(dt)
+	if not CONFIG.HeldItems then return end
+	local cam = Workspace.CurrentCamera
+	local char = lp.Character
+	local root = getRoot()
+	if not cam or not root or not char then return end
+	local slot = SV.getHeldSlot and SV.getHeldSlot()
+	local id = slot and slot.id or nil
+	if id ~= heldId or (id == "lantern" and slot.lit ~= heldLit) then buildHeld(id, slot) end
+	if #heldParts == 0 then return end
+
+	local t = os.clock()
+	local q = N.quake.Value + burst
+	local head = char:FindFirstChild("Head")
+	local first = head and (cam.CFrame.Position - head.Position).Magnitude < 2.5
+	local speed = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z).Magnitude
+	local bob = math.sin(t * 9) * 0.05 * math.min(speed / 16, 1)
+
+	-- sway: the item lags behind when you turn the camera
+	local rel = cam.CFrame:VectorToObjectSpace(lastLook)
+	swayV = swayV:Lerp(Vector3.new(rel.X, rel.Y, 0) * 2.5, math.min(1, dt * 10))
+	lastLook = cam.CFrame.LookVector
+
+	local handCF
+	if first then
+		handCF = cam.CFrame * CFrame.new(1.25 + swayV.X, -1.15 + bob + swayV.Y, -2.3) * CFrame.Angles(math.rad(8), math.rad(-18), 0)
+	else
+		local hand = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+		if not hand then
+			for _, hp in ipairs(heldParts) do hp.part.Transparency = 1 end
+			return
+		end
+		handCF = hand.CFrame * CFrame.new(0, -0.4, -0.9) * CFrame.Angles(math.rad(-90), 0, 0)
+	end
+
+	local swing = 0
+	if SV.isHolding and SV.isHolding() and id ~= "torch" and id ~= "lantern" then
+		swing = math.max(0, math.sin(t * 13)) * 0.9
+	end
+	if swing > 0 then
+		handCF = handCF * CFrame.new(0, -0.8, 0) * CFrame.Angles(-swing, 0, 0) * CFrame.new(0, 0.8, 0)
+	end
+
+	if id == "lantern" and slot then
+		-- the lantern swings, blinks and can run dry when the ground shakes
+		local pend = math.sin(t * 2.4) * 0.05 + math.noise(t * 9, 3.3, 0) * 2 * math.min(q, 2) * 0.35
+		handCF = handCF * CFrame.Angles(pend * 0.6, 0, pend)
+		if slot.lit then
+			if q > 0.25 and math.random() < dt * q * 2 then blinkUntil = t + 0.08 + math.random() * 0.25 end
+			if burst - lastBurstL > 0.45 and N.quake.Value > 0.5 and math.random() < 0.07 then
+				slot.lit = false
+				toast("Your lantern ran out of fuel! Press USE with a stick in your bag to refuel it", C(255, 200, 120), 4)
+				if SV.refreshUI then SV.refreshUI() end
+			end
+		end
+		local on = slot.lit and t >= blinkUntil
+		if heldLight then heldLight.Enabled = on end
+		if heldCore then
+			heldCore.Color = on and C(255, 200, 100) or C(70, 60, 50)
+			heldCore.Material = on and Enum.Material.Neon or Enum.Material.Glass
+		end
+	end
+	lastBurstL = burst
+
+	if id == "torch" and heldLight then
+		heldLight.Brightness = 2.4 + math.noise(t * 12, 1, 0) * 1.2
+		heldLight.Range = 26 + math.noise(t * 7, 2, 0) * 3
+	end
+
+	for _, hp in ipairs(heldParts) do
+		hp.part.Transparency = (id == "lantern" and hp.part == heldCore) and (heldLit and 0 or 0.35) or 0
+		hp.part.CFrame = handCF * hp.rel
+	end
+end
+
+if CONFIG.HeldItems then
+	RunService:BindToRenderStep("MoonDoomHeld", Enum.RenderPriority.Camera.Value + 2, function(dt)
+		local ok, e = pcall(heldStep, dt)
+		if not ok then report("held item", e) end
+	end)
+end
+
+local prevCleanup = survivalCleanup
+survivalCleanup = function()
+	if prevCleanup then pcall(prevCleanup) end
+	pcall(function() RunService:UnbindFromRenderStep("MoonDoomHeld") end)
+	pcall(function() RunService:UnbindFromRenderStep("MoonDoomWide") end)
+end
+
+end
+local ok5, e5 = pcall(__part5)
+if not ok5 then report("startup (volcanoes/held items/rain)", e5) end
+
 
 --------------------------------------------------------------------
 -- APPLY A STAGE (+ the two big scripted sequences)
@@ -3645,7 +4277,7 @@ local function updateRain(dt, cp)
 		list[i] = rainParts[i]
 		cfs[i] = CFrame.lookAt(Vector3.new(d.x, d.y, d.z), Vector3.new(d.x + vx, d.y + vy, d.z + vz))
 	end
-	Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireNoEvents)
+	Workspace:BulkMoveTo(list, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 end
 
 local camUnder, lastReverbUnder = false, false
@@ -3735,7 +4367,7 @@ local function renderStep(dt)
 
 	-- weather
 	weather.CFrame = CFrame.new(cp + Vector3.new(0, 55, 0))
-	ashE.Rate = N.ash.Value
+	ashE.Rate = N.ash.Value + (SV.ashBoost or 0)
 	emberE.Rate = N.ember.Value
 	moltenE.Rate = N.molten.Value * 0.5
 	ashE.Acceleration = Vector3.new(wd.X * windMag * 0.4, -2, wd.Z * windMag * 0.4)
@@ -4017,7 +4649,7 @@ end)
 --------------------------------------------------------------------
 applyStage(stage, true)
 showBanner(stage)
-print("[MoonDoom v6] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
+print("[MoonDoom v7] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
 end
 
 local __ok, __err = xpcall(__part2, function(e) return tostring(e) .. "\n" .. debug.traceback() end)
