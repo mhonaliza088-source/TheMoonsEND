@@ -1,5 +1,5 @@
 --[[
-	MOON COLLISION v7 - LEAD-UP + 15 DAY DOOMSDAY  (Delta compatible, client-side)
+	MOON COLLISION v8 - LEAD-UP + 15 DAY DOOMSDAY  (Delta compatible, client-side)
 
 	One stage every StageLength seconds (default 30):
 	  1 normal day | 2-5 = 5 months / 5 weeks / 1 month / 1 week before | 6-20 = Day 1 ... Day 15
@@ -306,14 +306,14 @@ S("DAY 1 / 15", "The Tidal Shock",
 	"The Moon's orbit destabilizes, setting it on a collision course.",
 	"Ocean tides go haywire, surging hundreds of feet high within minutes and wiping out coastal cities worldwide.",
 	"TSUNAMIS. Climb above the wave height or you will be swept away.",
-	{moonDeg = 5, water = 10, rain = 260, lightning = 0.55, wind = 44, hurr = 0.9, gravity = G(0.9),
+	{moonDeg = 5, water = -400, rain = 260, lightning = 0.55, wind = 44, hurr = 0.9, gravity = G(0.9),
 	 tsu = {{t = 1, h = 12}, {t = 10, h = 18}}})
 
 S("DAY 2 / 15", "The Looming Giant",
 	"The Moon closes the distance, dominating the night sky as a massive disk.",
 	"High tides become permanent coastal floods, rendering low-lying regions completely uninhabitable. Low-Earth-orbit satellites experience erratic drag from the shifting gravitational gradient.",
 	"Floods are permanent. Stay high. The first faint tremors begin.",
-	{moonDeg = 32, quake = 0.1, water = 8, clock = 22, brightness = 1, ambient = C(45, 50, 75), outdoor = C(70, 75, 105),
+	{moonDeg = 32, quake = 0.1, water = -400, clock = 22, brightness = 1, ambient = C(45, 50, 75), outdoor = C(70, 75, 105),
 	 ccSat = -0.2, ccTint = C(200, 210, 235), atmColor = C(100, 110, 140), atmDecay = C(60, 65, 90), atmHaze = 1, exposure = 0.1,
 	 rain = 190, lightning = 0.32, wind = 30, hurr = 0.7, gravity = G(0.84), tsu = {{t = 2, h = 14}}})
 
@@ -365,7 +365,7 @@ S("DAY 8 / 15", "Boiling Oceans and Pressure Spikes",
 	"Heat from continuous impacts and greenhouse gases boils shallow seas.",
 	"Atmospheric pressure spikes wildly as steam mixes with carbon monoxide and ash. Oxygen levels crash due to the death of global plant life, making unassisted breathing impossible.",
 	"Your oxygen reserve is draining. Impact is next.",
-	{moonDeg = 96, quake = 0.6, water = 6, waterCol = C(200, 200, 210), blur = 5, ember = 40,
+	{moonDeg = 96, quake = 0.6, water = -400, waterCol = C(200, 200, 210), blur = 5, ember = 40,
 	 atmDensity = 0.9, atmColor = C(170, 150, 140), atmDecay = C(130, 100, 80), atmHaze = 6,
 	 fogColor = C(150, 130, 120), fogEnd = 800, ccSat = -0.5, ccTint = C(235, 215, 200),
 	 lightning = 0.6, wind = 46, hurr = 0.8, hurrCol = C(190, 185, 185), gravity = G(0.15), float = 1,
@@ -1280,6 +1280,7 @@ local tsuNear, tsuSurface = 99999, nil
 
 local function spawnTsunami(h)
 	if not CONFIG.Tsunamis or not running then return end
+	if SV.spawnTsunami then SV.spawnTsunami(h) return end
 	local ang = math.random() * math.pi * 2
 	local dir = Vector3.new(-math.cos(ang), 0, -math.sin(ang))
 	local start = Vector3.new(startPos.X + math.cos(ang) * 1800, baseY, startPos.Z + math.sin(ang) * 1800)
@@ -1303,6 +1304,7 @@ local function spawnTsunami(h)
 end
 
 local function tsunamiStep(dt)
+	if SV.spawnTsunami then return end
 	tsuNear, tsuSurface = 99999, nil
 	local tsuShakeT = 0
 	local root = getRoot()
@@ -1496,6 +1498,7 @@ local ITEMS = {
 	cooked_meat = {name = "Steak", abbr = "CKD", col = C(135, 72, 42), food = 30},
 	torch = {name = "Torch", abbr = "TRC", col = C(255, 170, 60)},
 	lantern = {name = "Lantern", abbr = "LAN", col = C(255, 210, 110), tool = true},
+	rocket = {name = "NASA Rocket", abbr = "RKT", col = C(240, 240, 245), tool = true},
 }
 local BLOCK = {
 	log = {mat = Enum.Material.Wood, col = C(110, 75, 45), hp = 140},
@@ -1515,6 +1518,7 @@ local RECIPES = {
 	{cost = {{"stone", 5}}, out = {"furnace", 1}},
 	{cost = {{"stone", 1}, {"stick", 1}}, out = {"torch", 1}},
 	{cost = {{"stone", 5}}, out = {"lantern", 1}},
+	{cost = {{"stone", 30}, {"log", 20}, {"torch", 5}}, out = {"rocket", 1}},
 }
 
 local inv = {}
@@ -2533,6 +2537,10 @@ end
 
 local function placeBlock()
 	local s = inv[sel]
+	if s and s.id == "rocket" then
+		if SV.placeRocket then SV.placeRocket() end
+		return
+	end
 	if not s or not ITEMS[s.id].block then
 		toast("Select a block (log, planks, stone or furnace) to place", C(255, 200, 120), 1.8)
 		return
@@ -2715,6 +2723,17 @@ SV.ITEMS = ITEMS
 SV.getHeldSlot = function() return inv[sel] end
 SV.isHolding = function() return holding end
 SV.refreshUI = function() refreshUI() end
+SV.aim = aim
+SV.blocks = blocks
+SV.hurtBlock = hurtBlock
+SV.consumeSelected = function()
+    local s = inv[sel]
+    if s then
+        s.n -= 1
+        if s.n <= 0 then inv[sel] = false end
+        refreshUI()
+    end
+end
 SV.makePiece = makePiece
 SV.subtractBox = subtractBox
 SV.minedOrig = minedOrig
@@ -3928,7 +3947,12 @@ local function buildHeld(id, slot)
 	elseif id == "raw_meat" or id == "cooked_meat" then
 		sphere(addHP(Vector3.new(0.95, 0.8, 1.2), CFrame.new(), d.col, Enum.Material.SmoothPlastic))
 		addHP(Vector3.new(0.14, 0.14, 0.8), CFrame.new(0, 0.05, -0.85), C(240, 240, 230), Enum.Material.SmoothPlastic)
-	elseif id == "torch" then
+	elseif id == "rocket" then
+        addHP(Vector3.new(0.55, 1.5, 0.55), CFrame.new(), C(240, 240, 244), Enum.Material.SmoothPlastic)
+        sphere(addHP(Vector3.new(0.55, 0.75, 0.55), CFrame.new(0, 1.0, 0), C(210, 45, 45), Enum.Material.SmoothPlastic))
+        addHP(Vector3.new(1.1, 0.5, 0.12), CFrame.new(0, -0.6, 0), C(210, 45, 45), Enum.Material.SmoothPlastic)
+        addHP(Vector3.new(0.12, 0.5, 1.1), CFrame.new(0, -0.6, 0), C(210, 45, 45), Enum.Material.SmoothPlastic)
+    elseif id == "torch" then
 		addHP(Vector3.new(0.22, 1.7, 0.22), CFrame.new(), C(120, 85, 50), Enum.Material.Wood)
 		local tip = addHP(Vector3.new(0.34, 0.34, 0.34), CFrame.new(0, 0.95, 0), C(40, 30, 25), Enum.Material.SmoothPlastic)
 		local f = Instance.new("Fire")
@@ -4060,6 +4084,860 @@ end
 local ok5, e5 = pcall(__part5)
 if not ok5 then report("startup (volcanoes/held items/rain)", e5) end
 
+--------------------------------------------------------------------
+-- PART 6: tsunamis v2 - water stays OUTSIDE sealed houses, wears the walls down
+--         (stone resists), floods in once a wall breaks, then rises / falls / disappears
+--------------------------------------------------------------------
+local function __part6()
+
+local DIRS = {Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1)}
+local REGION = 500
+local WRATE = {planks = 6, log = 4.5, furnace = 2.5, stone = 0.8}
+local waves = {}
+local breached = false
+local houseHole = nil
+local lastBlockCount = 0
+local lastHouse, lastDmg = 0, 0
+
+local function newPool(col, mat)
+	local pool = {}
+	for i = 1, 5 do
+		local p = mkPart(Vector3.new(1, 1, 1), CFrame.new(0, -2000, 0), mat or Enum.Material.SmoothPlastic, col)
+		p.Transparency = 1
+		p.Parent = fx
+		pool[i] = p
+	end
+	return pool
+end
+
+local function worldRect(w, a0, a1, l0, l1)
+	local bx, bz = startPos.X - w.dir.X * w.distStart, startPos.Z - w.dir.Z * w.distStart
+	local c1x, c1z = bx + w.dir.X * a0 + w.right.X * l0, bz + w.dir.Z * a0 + w.right.Z * l0
+	local c2x, c2z = bx + w.dir.X * a1 + w.right.X * l1, bz + w.dir.Z * a1 + w.right.Z * l1
+	return math.min(c1x, c2x), math.max(c1x, c2x), math.min(c1z, c2z), math.max(c1z, c2z)
+end
+
+-- a box minus the house column = up to 5 boxes (water flows AROUND the house)
+local function decompose(x0, x1, z0, z1, y0, y1, hole)
+	local out = {}
+	local function add(ax0, ax1, az0, az1, ay0, ay1)
+		if ax1 - ax0 > 0.05 and az1 - az0 > 0.05 and ay1 - ay0 > 0.05 then
+			out[#out + 1] = {ax0, ax1, az0, az1, ay0, ay1}
+		end
+	end
+	if not hole or hole.x1 <= x0 or hole.x0 >= x1 or hole.z1 <= z0 or hole.z0 >= z1 then
+		add(x0, x1, z0, z1, y0, y1)
+		return out
+	end
+	local ix0, ix1 = math.max(x0, hole.x0), math.min(x1, hole.x1)
+	local iz0, iz1 = math.max(z0, hole.z0), math.min(z1, hole.z1)
+	add(x0, ix0, z0, z1, y0, y1)
+	add(ix1, x1, z0, z1, y0, y1)
+	add(ix0, ix1, z0, iz0, y0, y1)
+	add(ix0, ix1, iz1, z1, y0, y1)
+	add(ix0, ix1, iz0, iz1, math.max(y0, hole.top), y1)
+	return out
+end
+
+local function applyPool(pool, trans, x0, x1, z0, z1, y0, y1, hole)
+	local boxes = decompose(x0, x1, z0, z1, y0, y1, hole)
+	for i, p in ipairs(pool) do
+		local b = boxes[i]
+		if b then
+			p.Size = Vector3.new(b[2] - b[1], b[6] - b[5], b[4] - b[3])
+			p.CFrame = CFrame.new((b[1] + b[2]) / 2, (b[5] + b[6]) / 2, (b[3] + b[4]) / 2)
+			p.Transparency = trans
+		else
+			p.Transparency = 1
+		end
+	end
+end
+
+local function sheetHeight(w, now)
+	if not w.sheetT0 then return 0 end
+	local a = now - w.sheetT0
+	if a >= w.T then return 0 end
+	local ramp = math.min(1, a / 2)
+	local env = (1 - a / w.T) ^ 0.8
+	local osc = 0.78 + 0.22 * math.sin(a * 0.55)
+	return w.h * 0.45 * ramp * env * osc
+end
+
+local function spawnTsunami2(h)
+	if not CONFIG.Tsunamis or not running then return end
+	local dir = DIRS[math.random(#DIRS)]
+	local col = waterColV.Value
+	local spray = mkPart(Vector3.new(100, 4, 100), CFrame.new(0, -2000, 0))
+	spray.Transparency = 1
+	spray.Parent = fx
+	emitter(spray, {Texture = SMOKE, Color = ColorSequence.new(C(240, 248, 255)), Size = NumberSequence.new(14),
+		Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1)}),
+		Lifetime = NumberRange.new(2, 3), Speed = NumberRange.new(20, 40), SpreadAngle = Vector2.new(40, 40), Rate = 220})
+	local distStart = 1800
+	waves[#waves + 1] = {dir = dir, right = Vector3.new(-dir.Z, 0, dir.X), d = 0, speed = 85, h = h, halfW = 1000, bodyLen = 220,
+		hit = false, distStart = distStart, regionBack = distStart - REGION, regionFront = distStart + REGION,
+		sheetH = 0, sheetT0 = nil, T = 35 + math.random() * 35, spray = spray,
+		wall = newPool(col), body = newPool(col), foam = newPool(C(235, 245, 255), Enum.Material.Neon), sheet = newPool(col)}
+	toast("TSUNAMI APPROACHING - get " .. h .. "+ studs up, or seal yourself in (stone walls hold the water back longest)", C(120, 200, 255), 6)
+	oneShot(SND.boom, 1, 0.2, 0)
+end
+SV.spawnTsunami = spawnTsunami2
+
+-- water height at a point (studs above the ground): returns height, moving?, which part of the wave
+local function waterAt(w, px, pz)
+	local bx, bz = startPos.X - w.dir.X * w.distStart, startPos.Z - w.dir.Z * w.distStart
+	local along = (px - bx) * w.dir.X + (pz - bz) * w.dir.Z
+	local lat = (px - startPos.X) * w.right.X + (pz - startPos.Z) * w.right.Z
+	local F = w.d
+	if math.abs(lat) <= w.halfW then
+		if along >= F - 30 and along <= F + 30 then return w.h, true, "wall", along, lat end
+		if along >= F - 30 - w.bodyLen and along < F - 30 then return w.h * 0.45, true, "body", along, lat end
+	end
+	if math.abs(lat) <= REGION and along >= w.regionBack and along <= math.min(w.regionFront, F - 30 - w.bodyLen) then
+		return w.sheetH, false, "sheet", along, lat
+	end
+	return 0, false, nil, along, lat
+end
+
+-- the footprint of the shelter around you (placed blocks); only "active" while you are sealed in
+local function computeHouse()
+	houseHole = nil
+	if not sealed or not SV.blocks then return end
+	local root = getRoot()
+	if not root then return end
+	local rp = root.Position
+	local mnx, mxx, mnz, mxz, mxy = 1e9, -1e9, 1e9, -1e9, -1e9
+	local n = 0
+	for _, r in ipairs(SV.blocks) do
+		if r.part.Parent then
+			local p = r.part.Position
+			if math.abs(p.X - rp.X) < 24 and math.abs(p.Z - rp.Z) < 24 and math.abs(p.Y - rp.Y) < 30 then
+				n += 1
+				mnx = math.min(mnx, p.X - 2)
+				mxx = math.max(mxx, p.X + 2)
+				mnz = math.min(mnz, p.Z - 2)
+				mxz = math.max(mxz, p.Z + 2)
+				mxy = math.max(mxy, p.Y + 2)
+			end
+		end
+	end
+	if n >= 8 then houseHole = {x0 = mnx, x1 = mxx, z0 = mnz, z1 = mxz, top = mxy} end
+end
+
+local function step(dt)
+	local now = os.clock()
+	local root = getRoot()
+	local rp = root and root.Position or startPos
+
+	if now - lastHouse > 0.25 then
+		lastHouse = now
+		computeHouse()
+	end
+	if #waves == 0 then breached = false end
+	local hole = (houseHole and not breached) and houseHole or nil
+	local shelter = sealed and not breached
+
+	tsuNear, tsuSurface = 99999, nil
+	local shakeT = 0
+	local hgt, moving, region, wref = 0, false, nil, nil
+
+	for i = #waves, 1, -1 do
+		local w = waves[i]
+		w.d += w.speed * dt
+		local F = w.d
+		if not w.sheetT0 and (F - 30 - w.bodyLen) >= w.regionBack then w.sheetT0 = now end
+		w.sheetH = sheetHeight(w, now)
+		local y0 = baseY - 3
+		local x0, x1, z0, z1 = worldRect(w, F - 30, F + 30, -w.halfW, w.halfW)
+		applyPool(w.wall, 0.22, x0, x1, z0, z1, y0, baseY + w.h, hole)
+		x0, x1, z0, z1 = worldRect(w, F - 40, F + 40, -w.halfW, w.halfW)
+		applyPool(w.foam, 0.1, x0, x1, z0, z1, baseY + w.h - 1, baseY + w.h + 4, hole)
+		x0, x1, z0, z1 = worldRect(w, F - 30 - w.bodyLen, F - 30, -w.halfW, w.halfW)
+		applyPool(w.body, 0.4, x0, x1, z0, z1, y0, baseY + w.h * 0.45, hole)
+		local sheetEnd = math.min(w.regionFront, F - 30 - w.bodyLen)
+		if w.sheetH > 0.05 and sheetEnd > w.regionBack then
+			x0, x1, z0, z1 = worldRect(w, w.regionBack, sheetEnd, -REGION, REGION)
+			applyPool(w.sheet, 0.35, x0, x1, z0, z1, y0, baseY + w.sheetH, hole)
+		else
+			for _, p in ipairs(w.sheet) do p.Transparency = 1 end
+		end
+
+		local hh, mv, rg, along, lat = waterAt(w, rp.X, rp.Z)
+		local bx, bz = startPos.X - w.dir.X * w.distStart, startPos.Z - w.dir.Z * w.distStart
+		local lc = math.clamp(lat, -w.halfW + 60, w.halfW - 60)
+		w.spray.CFrame = CFrame.new(bx + w.dir.X * F + w.right.X * lc, baseY + w.h + 2, bz + w.dir.Z * F + w.right.Z * lc)
+		if hh > hgt then hgt, moving, region, wref = hh, mv, rg, w end
+		local near = math.abs(along - F)
+		if math.abs(lat) <= w.halfW then tsuNear = math.min(tsuNear, near) end
+		if near < 300 then
+			local feetRel = rp.Y - 3 - baseY
+			local k = (1 - near / 300) * ((feetRel > w.h + 2) and 0.15 or 0.7) * (shelter and 0.5 or 1)
+			shakeT = math.max(shakeT, k)
+		end
+
+		if F > w.distStart + REGION + 500 and (not w.sheetT0 or now - w.sheetT0 > w.T) then
+			for _, pool in ipairs({w.wall, w.body, w.foam, w.sheet}) do
+				for _, p in ipairs(pool) do pcall(function() p:Destroy() end) end
+			end
+			pcall(function() w.spray:Destroy() end)
+			table.remove(waves, i)
+		end
+	end
+	tsuShake = tsuShake + (shakeT - tsuShake) * math.min(1, dt * 4)
+
+	-- effects on you: none while sealed in (the water is outside)
+	if root and wref and hgt > 0.5 and not shelter then
+		local feetRel = rp.Y - 3 - baseY
+		if feetRel < hgt - 1 then
+			tsuSurface = baseY + hgt
+			if moving then
+				local v = root.AssemblyLinearVelocity
+				local tv = wref.dir * wref.speed * 0.85
+				local k = math.min(1, dt * 2.5)
+				root.AssemblyLinearVelocity = Vector3.new(v.X + (tv.X - v.X) * k, v.Y, v.Z + (tv.Z - v.Z) * k)
+				hurt(3 * dt, "tsunami debris")
+			end
+			if region == "wall" and not wref.hit and feetRel < wref.h * 0.85 then
+				wref.hit = true
+				burst += 2
+				if flash then flash(0.35, 1.5) end
+				oneShot(SND.boom, 2, 0.3, 0)
+				blast(math.min(30, 5 + wref.h * 0.3), 45, "tsunami")
+				root:ApplyImpulse(wref.dir * root.AssemblyMass * 50)
+			end
+		end
+	end
+
+	-- the water outside slowly wears your blocks down (stone barely notices)
+	if now - lastDmg > 0.5 and #waves > 0 and SV.blocks then
+		lastDmg = now
+		for i = #SV.blocks, 1, -1 do
+			local r = SV.blocks[i]
+			if r and r.part.Parent then
+				local pp = r.part.Position
+				local mh = 0
+				for _, w in ipairs(waves) do
+					local hh2 = waterAt(w, pp.X, pp.Z)
+					if hh2 > mh then mh = hh2 end
+				end
+				if mh > 0.5 and baseY + mh > pp.Y - 1 then
+					SV.hurtBlock(r, (WRATE[r.kind] or 3) * 0.5 * (0.6 + math.random() * 0.8))
+				end
+			end
+		end
+		-- a block broke while you were sealed in: the water gets in
+		if sealed and #SV.blocks < lastBlockCount then
+			breached = true
+			toast("A WALL BROKE - THE WATER IS POURING IN!", C(255, 150, 110), 3)
+		end
+		lastBlockCount = #SV.blocks
+	end
+end
+
+connect(RunService.Heartbeat, function(dt)
+	local ok, e = pcall(step, dt)
+	if not ok then report("tsunami", e) end
+end)
+
+end
+local ok6, e6 = pcall(__part6)
+if not ok6 then report("startup (tsunamis)", e6) end
+
+
+--------------------------------------------------------------------
+-- PART 7: NASA rocket - place it, climb the stairs, board, launch,
+--         leave Earth, watch the Moon close in, dock with the ISS
+--------------------------------------------------------------------
+local function __part7()
+
+local SO = Vector3.new(startPos.X, baseY + 60000, startPos.Z)
+local rockets = {}
+local fl = nil
+local prevPaused = false
+local boardTarget = nil
+local ZERO = {"rain", "acid", "molten", "ash", "ember", "meteor", "lightning", "wind", "hurr", "quake", "float"}
+
+local function smooth(x)
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+local function lerp(a, b, k) return a + (b - a) * k end
+local function tangentCF(pos, n)
+	local ref = (math.abs(n.Y) < 0.95) and Vector3.yAxis or Vector3.xAxis
+	local right = ref:Cross(n).Unit
+	return CFrame.fromMatrix(pos, right, n)
+end
+local function cyl(parent, height, diameter, cf, col, mat)
+	local p = mkPart(Vector3.new(height, diameter, diameter), cf * CFrame.Angles(0, 0, math.pi / 2), mat or Enum.Material.SmoothPlastic, col)
+	p.Shape = Enum.PartType.Cylinder
+	p.CanCollide = true
+	p.Parent = parent
+	return p
+end
+local function randUnit()
+	local v = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5)
+	if v.Magnitude < 0.05 then v = Vector3.new(0, 1, 0) end
+	return v.Unit
+end
+
+-- GUI ----------------------------------------------------------------------
+local function bigButton(text, col, y)
+	local b = mk("TextButton", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, y, 0), Size = UDim2.new(0, 240, 0, 46),
+		BackgroundColor3 = col, BorderSizePixel = 0, Text = text, Font = Enum.Font.Arcade, TextSize = 18, TextColor3 = Color3.new(1, 1, 1),
+		Visible = false, ZIndex = 20}, gui)
+	mk("UIStroke", {Color = C(20, 20, 20), Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, b)
+	return b
+end
+local boardBtn = bigButton("BOARD ROCKET & LAUNCH", C(200, 60, 50), 0.66)
+local retBtn = bigButton("RETURN TO EARTH", C(50, 110, 200), 0.84)
+local cdL = mk("TextLabel", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.3, 0), Size = UDim2.new(0, 500, 0, 90),
+	BackgroundTransparency = 1, Text = "", Font = Enum.Font.GothamBlack, TextSize = 64, TextColor3 = Color3.new(1, 1, 1),
+	TextStrokeTransparency = 0.2, ZIndex = 21}, gui)
+
+-- the rocket + launch pad + spiral stairs ----------------------------------------
+local startFlight
+
+local function buildRocket(P)
+	local rec = {P = P, used = false}
+	local pad = Instance.new("Folder")
+	pad.Name = "RocketPad"
+	pad.Parent = fx
+	local ship = Instance.new("Model")
+	ship.Name = "RocketShip"
+	ship.Parent = fx
+	rec.pad, rec.ship = pad, ship
+	local function at(y) return CFrame.new(P.X, P.Y + y, P.Z) end
+	local WHITE = C(240, 240, 244)
+	local METAL = Enum.Material.Metal
+
+	cyl(pad, 1.2, 38, at(0.6), C(48, 48, 52), Enum.Material.Concrete)
+	for i = 1, 4 do
+		local a = math.rad(45 + i * 90)
+		local leg = mkPart(Vector3.new(1.6, 5, 1.6), CFrame.new(P.X + math.cos(a) * 8, P.Y + 3.4, P.Z + math.sin(a) * 8), METAL, C(110, 110, 115))
+		leg.CanCollide = true
+		leg.Parent = pad
+	end
+
+	local core = mkPart(Vector3.new(1, 1, 1), at(20), Enum.Material.SmoothPlastic, WHITE)
+	core.Transparency = 1
+	core.Parent = ship
+	ship.PrimaryPart = core
+	cyl(ship, 12, 13, at(10), WHITE)
+	cyl(ship, 1.2, 13.6, at(16), C(200, 40, 40))
+	cyl(ship, 10, 12.4, at(21.6), WHITE)
+	cyl(ship, 1.2, 13, at(27.2), C(30, 30, 34))
+	cyl(ship, 3, 8.4, at(2.5), C(35, 35, 40), METAL)
+	local cap = sphere(mkPart(Vector3.new(11, 13, 11), at(32.5), Enum.Material.Glass, C(190, 225, 255)))
+	cap.Transparency = 0.5
+	cap.Parent = ship
+	cyl(ship, 1, 11.6, at(27.9), C(60, 60, 66), METAL)
+	cyl(ship, 3, 4.4, at(40), WHITE)
+	cyl(ship, 3, 2.8, at(43), C(200, 40, 40))
+	cyl(ship, 5, 0.6, at(47), WHITE)
+	for i = 1, 4 do
+		local a = math.rad((i - 1) * 90)
+		local fin = mkPart(Vector3.new(6, 11, 1.2), CFrame.new(P.X + math.cos(a) * 8.8, P.Y + 9, P.Z + math.sin(a) * 8.8) * CFrame.Angles(0, -a, 0),
+			Enum.Material.SmoothPlastic, C(200, 40, 40))
+		fin.CanCollide = true
+		fin.Parent = ship
+	end
+	-- NASA lettering
+	local sign = mkPart(Vector3.new(9, 3.4, 0.3), at(13) * CFrame.new(0, 0, 6.6), Enum.Material.SmoothPlastic, WHITE)
+	sign.Transparency = 1
+	sign.Parent = ship
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = Enum.NormalId.Back
+	sg.CanvasSize = Vector2.new(360, 136)
+	sg.Parent = sign
+	local tl = Instance.new("TextLabel")
+	tl.Size = UDim2.fromScale(1, 1)
+	tl.BackgroundTransparency = 1
+	tl.Text = "NASA"
+	tl.TextColor3 = C(220, 30, 30)
+	tl.Font = Enum.Font.GothamBlack
+	tl.TextScaled = true
+	tl.Parent = sg
+
+	-- spiral stairs up to the capsule hatch
+	for i = 1, 18 do
+		local th = math.rad(i * 22)
+		local st = mkPart(Vector3.new(5.5, 0.7, 4.8), CFrame.new(P.X + math.cos(th) * 8.8, P.Y + i * 1.5 - 0.35, P.Z + math.sin(th) * 8.8) * CFrame.Angles(0, -th, 0),
+			METAL, C(150, 152, 158))
+		st.CanCollide = true
+		st.Parent = pad
+	end
+	cyl(pad, 0.8, 24, at(27), C(120, 122, 128), METAL)
+	local thTop = math.rad(18 * 22)
+	local hatch = mkPart(Vector3.new(3, 5, 3), CFrame.new(P.X + math.cos(thTop) * 8.4, P.Y + 29.4, P.Z + math.sin(thTop) * 8.4))
+	hatch.Transparency = 1
+	hatch.Parent = pad
+	local pp = Instance.new("ProximityPrompt")
+	pp.ActionText = "Board & launch"
+	pp.ObjectText = "NASA rocket"
+	pp.HoldDuration = 0.6
+	pp.MaxActivationDistance = 12
+	pp.RequiresLineOfSight = false
+	pp.Parent = hatch
+	rec.hatch, rec.prompt = hatch, pp
+	connect(pp.Triggered, function() if startFlight then startFlight(rec) end end)
+	rockets[#rockets + 1] = rec
+	return rec
+end
+
+SV.placeRocket = function()
+	local res = SV.aim and SV.aim(40)
+	if not res then toast("Aim at flat ground within 40 studs to place the rocket", C(255, 200, 120), 2.5) return end
+	if res.Normal.Y < 0.6 then toast("Aim at flatter ground", C(255, 200, 120), 2) return end
+	buildRocket(res.Position)
+	if SV.consumeSelected then SV.consumeSelected() end
+	oneShot(SND.pop, 1, 0.4, 0)
+	toast("NASA rocket placed! Climb the spiral stairs, then board it.", C(255, 235, 200), 4)
+end
+
+-- the ISS -------------------------------------------------------------------------
+local function buildISS(I, folder)
+	local m = Instance.new("Model")
+	m.Name = "ISS"
+	m.Parent = folder
+	local WHITE = C(235, 236, 240)
+	local METAL = Enum.Material.Metal
+	local function add(size, rel, col, mat, collide, trans, shape)
+		local p = mkPart(size, CFrame.new(I) * rel, mat or Enum.Material.SmoothPlastic, col)
+		p.CanCollide = collide and true or false
+		if trans then p.Transparency = trans end
+		if shape then p.Shape = shape end
+		p.Parent = m
+		return p
+	end
+	local L, W, H, t = 34, 14, 12, 0.8
+	local GLASS = C(170, 210, 255)
+	-- hollow habitat module (you float in here)
+	add(Vector3.new(L + t, t, W + t), CFrame.new(0, H / 2 + t / 2, 0), WHITE, nil, true)
+	add(Vector3.new(11.4, t, W + t), CFrame.new(-11.7, -(H / 2 + t / 2), 0), WHITE, nil, true)
+	add(Vector3.new(11.4, t, W + t), CFrame.new(11.7, -(H / 2 + t / 2), 0), WHITE, nil, true)
+	add(Vector3.new(12, t, 3.4), CFrame.new(0, -(H / 2 + t / 2), -5.7), WHITE, nil, true)
+	add(Vector3.new(12, t, 3.4), CFrame.new(0, -(H / 2 + t / 2), 5.7), WHITE, nil, true)
+	add(Vector3.new(12, 0.4, 8), CFrame.new(0, -(H / 2 + t / 2), 0), GLASS, Enum.Material.Glass, true, 0.6)
+	add(Vector3.new(L + t, H + t, t), CFrame.new(0, 0, -(W / 2 + t / 2)), WHITE, nil, true)
+	add(Vector3.new(9.4, H + t, t), CFrame.new(-12.7, 0, W / 2 + t / 2), WHITE, nil, true)
+	add(Vector3.new(9.4, H + t, t), CFrame.new(12.7, 0, W / 2 + t / 2), WHITE, nil, true)
+	add(Vector3.new(16, 2.4, t), CFrame.new(0, 5.2, W / 2 + t / 2), WHITE, nil, true)
+	add(Vector3.new(16, 2.4, t), CFrame.new(0, -5.2, W / 2 + t / 2), WHITE, nil, true)
+	add(Vector3.new(16, 8, 0.4), CFrame.new(0, 0, W / 2 + t / 2), GLASS, Enum.Material.Glass, true, 0.6)
+	add(Vector3.new(t, H + t, W), CFrame.new(-(L / 2 + t / 2), 0, 0), WHITE, nil, true)
+	add(Vector3.new(t, H + t, W), CFrame.new(L / 2 + t / 2, 0, 0), WHITE, nil, true)
+	-- interior details
+	for _, x in ipairs({-10, 0, 10}) do
+		local s = add(Vector3.new(8, 0.2, 0.7), CFrame.new(x, H / 2 - 0.2, 0), C(255, 255, 245), Enum.Material.Neon)
+		local pl = Instance.new("PointLight")
+		pl.Range = 24
+		pl.Brightness = 1.6
+		pl.Color = C(235, 240, 255)
+		pl.Parent = s
+	end
+	for i = 1, 6 do
+		local x = -14 + i * 4.4
+		add(Vector3.new(3, 5, 1.6), CFrame.new(x, -3.2, -(W / 2) + 1.2), C(210, 212, 218), nil, true)
+		add(Vector3.new(1.4, 0.9, 0.1), CFrame.new(x, -2.2, -(W / 2) + 2.05), C(60, 255, 140), Enum.Material.Neon)
+	end
+	add(Vector3.new(28, 0.25, 0.25), CFrame.new(0, 3, -(W / 2) + 0.6), C(255, 210, 60), Enum.Material.Neon)
+	add(Vector3.new(28, 0.25, 0.25), CFrame.new(0, -1, (W / 2) - 0.6), C(255, 210, 60), Enum.Material.Neon)
+	-- exterior: truss, modules, docking port, solar arrays, radiators
+	add(Vector3.new(5, 5, 170), CFrame.new(0, 9, 0), C(200, 200, 206), METAL)
+	add(Vector3.new(4, 6, 6), CFrame.new(-(L / 2 + 2.4), 0, 0), C(210, 210, 216), METAL, false, nil, Enum.PartType.Cylinder)
+	add(Vector3.new(26, 9, 9), CFrame.new(L / 2 + 13.6, 0, 0), WHITE, nil, false, nil, Enum.PartType.Cylinder)
+	add(Vector3.new(24, 9, 9), CFrame.new(0, 0, W / 2 + 12.5) * CFrame.Angles(0, math.pi / 2, 0), WHITE, nil, false, nil, Enum.PartType.Cylinder)
+	add(Vector3.new(24, 9, 9), CFrame.new(0, 0, -(W / 2 + 12.5)) * CFrame.Angles(0, math.pi / 2, 0), WHITE, nil, false, nil, Enum.PartType.Cylinder)
+	for _, sx in ipairs({-1, 1}) do
+		for _, sz in ipairs({-1, 1}) do
+			local pos = CFrame.new(sx * 38.5, 9, sz * 76)
+			local panel = add(Vector3.new(70, 0.5, 32), pos, C(18, 35, 85))
+			panel.Reflectance = 0.3
+			add(Vector3.new(70.8, 0.4, 32.8), pos * CFrame.new(0, -0.15, 0), C(190, 150, 60), METAL)
+		end
+	end
+	add(Vector3.new(0.4, 24, 18), CFrame.new(8, 9, -45), WHITE)
+	add(Vector3.new(0.4, 24, 18), CFrame.new(-8, 9, 45), WHITE)
+	return m
+end
+
+-- the space scene: Earth, Moon, ISS, stars, Sun -----------------------------------------
+local function buildSpace()
+	local folder = Instance.new("Folder")
+	folder.Name = "DoomSpace"
+	folder.Parent = fx
+	local sunDir = Lighting:GetSunDirection()
+	local E = SO + Vector3.new(0, -1000, 0)
+
+	local earth = Instance.new("Model")
+	earth.Name = "Earth"
+	earth.Parent = folder
+	local base = sphere(mkPart(Vector3.new(2000, 2000, 2000), CFrame.new(E), Enum.Material.SmoothPlastic, C(18, 70, 150)))
+	base.Reflectance = 0.08
+	base.Parent = earth
+	earth.PrimaryPart = base
+	local LAND = {C(46, 120, 56), C(60, 130, 60), C(150, 125, 80), C(200, 170, 110)}
+	for i = 1, 18 do
+		local n = Vector3.new(math.random() - 0.5, 0.15 + math.random() * 0.85, math.random() - 0.5).Unit
+		local w = math.random(160, 360)
+		local c = sphere(mkPart(Vector3.new(w, math.max(24, w * 0.16), w * (0.5 + math.random() * 0.6)), tangentCF(E + n * 997, n),
+			Enum.Material.SmoothPlastic, LAND[math.random(#LAND)]))
+		c.Parent = earth
+	end
+	for i = 1, 30 do
+		local n = Vector3.new(math.random() - 0.5, 0.1 + math.random() * 0.9, math.random() - 0.5).Unit
+		local w = math.random(120, 300)
+		local c = sphere(mkPart(Vector3.new(w, 14, w * (0.4 + math.random() * 0.5)), tangentCF(E + n * 1012, n), Enum.Material.SmoothPlastic, Color3.new(1, 1, 1)))
+		c.Transparency = 0.25
+		c.Parent = earth
+	end
+	local atmo = sphere(mkPart(Vector3.new(2090, 2090, 2090), CFrame.new(E), Enum.Material.Neon, C(110, 170, 255)))
+	atmo.Transparency = 0.9
+	atmo.Parent = earth
+
+	local M0 = SO + Vector3.new(700, 650, -1800)
+	local M1 = SO + Vector3.new(700, 600, -520)
+	local moon = Instance.new("Model")
+	moon.Name = "Moon"
+	moon.Parent = folder
+	local mball = sphere(mkPart(Vector3.new(160, 160, 160), CFrame.new(M0), Enum.Material.Slate, C(190, 190, 196)))
+	mball.Parent = moon
+	moon.PrimaryPart = mball
+	for i = 1, 12 do
+		local n = randUnit()
+		local d = math.random(14, 30)
+		local c = sphere(mkPart(Vector3.new(d, 4, d), tangentCF(M0 + n * 79, n), Enum.Material.Slate, C(120, 120, 128)))
+		c.Parent = moon
+	end
+
+	local I = SO + Vector3.new(950, 720, 0)
+	local iss = buildISS(I, folder)
+
+	for i = 1, 240 do
+		local s = math.random(3, 9)
+		local pickc = math.random()
+		local col = (pickc < 0.6) and Color3.new(1, 1, 1) or ((pickc < 0.8) and C(190, 215, 255) or C(255, 235, 190))
+		local p = mkPart(Vector3.new(s, s, s), CFrame.new(SO + Vector3.new(450, 600, 0) + randUnit() * (2800 + math.random() * 900)), Enum.Material.Neon, col)
+		p.Shape = Enum.PartType.Ball
+		p.Parent = folder
+	end
+	local sun = mkPart(Vector3.new(380, 380, 380), CFrame.new(SO + Vector3.new(450, 600, 0) + sunDir * 3300), Enum.Material.Neon, C(255, 246, 225))
+	sun.Shape = Enum.PartType.Ball
+	sun.Parent = folder
+	return {folder = folder, earth = earth, E = E, moon = moon, M0 = M0, M1 = M1, iss = iss, I = I}
+end
+
+-- flight --------------------------------------------------------------------------------
+local function setLighting(k)
+	local l0 = fl.l0
+	Lighting.Brightness = lerp(l0.Brightness, 2.6, k)
+	Lighting.Ambient = l0.Ambient:Lerp(C(16, 18, 30), k)
+	Lighting.OutdoorAmbient = l0.OutdoorAmbient:Lerp(C(16, 18, 30), k)
+	Lighting.ClockTime = (k >= 1) and 17 or lerp(l0.ClockTime, 17, k)
+	Lighting.FogEnd = lerp(l0.FogEnd, 1e6, k)
+	Lighting.FogStart = lerp(l0.FogStart, 0, k)
+	Lighting.FogColor = l0.FogColor:Lerp(C(0, 0, 0), k)
+	atm.Density = lerp(l0.atmDensity, 0, k)
+	bloom.Intensity = lerp(l0.bloom, 0.5, k)
+	cc.TintColor = l0.tint:Lerp(Color3.new(1, 1, 1), k)
+	cc.Saturation = lerp(l0.sat, 0.15, k)
+	cc.Brightness = lerp(l0.ccb, 0, k)
+	blur.Size = lerp(l0.blur, 0, k)
+	rays.Intensity = lerp(l0.rays, 0.22, k)
+end
+
+local function setCam(pos, look)
+	local cam = Workspace.CurrentCamera
+	if not cam then return end
+	cam.CameraType = Enum.CameraType.Scriptable
+	cam.CFrame = CFrame.lookAt(pos, look)
+end
+
+local function setShip(cf)
+	fl.rec.ship:PivotTo(cf)
+	local root = getRoot()
+	if root then root.CFrame = cf * CFrame.new(0, 12.5, 0) end
+end
+
+local function endFlight(teleportHome)
+	if not fl then return end
+	local f = fl
+	fl = nil
+	SV.zeroG = false
+	SV.inRocket = false
+	paused = prevPaused
+	retBtn.Visible = false
+	cdL.Text = ""
+	pcall(function() if f.space then f.space.folder:Destroy() end end)
+	pcall(function() f.rec.ship:Destroy() end)
+	local cam = Workspace.CurrentCamera
+	local root, hum = getRoot(), getHum()
+	if cam then
+		cam.CameraType = Enum.CameraType.Custom
+		if hum then cam.CameraSubject = hum end
+	end
+	if root then
+		root.Anchored = false
+		if teleportHome then
+			root.CFrame = CFrame.new(f.P + Vector3.new(16, 4, 0))
+			root.AssemblyLinearVelocity = Vector3.zero
+		end
+	end
+	if SV.applyCurrent then SV.applyCurrent(3) end
+end
+
+startFlight = function(rec)
+	if fl or rec.used then return end
+	local root, hum = getRoot(), getHum()
+	if not root or not hum or hum.Health <= 0 then return end
+	rec.used = true
+	pcall(function() rec.prompt.Enabled = false end)
+	boardBtn.Visible = false
+	prevPaused = paused
+	paused = true
+	SV.inRocket = true
+	for tw_ in pairs(tweens) do pcall(function() tw_:Cancel() end) end
+	local P = rec.P
+
+	local flame = mkPart(Vector3.new(4, 2, 4), CFrame.new(P.X, P.Y + 1, P.Z))
+	flame.Transparency = 1
+	flame.Parent = rec.ship
+	local fire = Instance.new("Fire")
+	fire.Size = 4
+	fire.Heat = 25
+	fire.Color = C(255, 190, 90)
+	fire.SecondaryColor = C(255, 70, 20)
+	fire.Parent = flame
+	local light = Instance.new("PointLight")
+	light.Range = 90
+	light.Brightness = 1
+	light.Color = C(255, 170, 80)
+	light.Parent = flame
+	local smoke = emitter(flame, {EmissionDirection = Enum.NormalId.Bottom, Texture = SMOKE, Color = ColorSequence.new(C(235, 235, 240)),
+		Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 8), NumberSequenceKeypoint.new(1, 40)}),
+		Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)}),
+		Lifetime = NumberRange.new(3, 5), Speed = NumberRange.new(20, 40), SpreadAngle = Vector2.new(12, 12), Rate = 10})
+	local padPart = mkPart(Vector3.new(30, 1, 30), CFrame.new(P.X, P.Y + 2, P.Z))
+	padPart.Transparency = 1
+	padPart.Parent = rec.pad
+	local padSmoke = emitter(padPart, {Texture = SMOKE, Color = ColorSequence.new(C(220, 220, 225)),
+		Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 10), NumberSequenceKeypoint.new(1, 50)}),
+		Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 1)}),
+		Lifetime = NumberRange.new(3, 6), Speed = NumberRange.new(30, 60), SpreadAngle = Vector2.new(80, 80), Rate = 10})
+
+	fl = {rec = rec, P = P, t0 = os.clock(), phase = "count", fire = fire, light = light, smoke = smoke, padSmoke = padSmoke,
+		l0 = {Brightness = Lighting.Brightness, Ambient = Lighting.Ambient, OutdoorAmbient = Lighting.OutdoorAmbient, ClockTime = Lighting.ClockTime,
+			FogEnd = Lighting.FogEnd, FogStart = Lighting.FogStart, FogColor = Lighting.FogColor, atmDensity = atm.Density, bloom = bloom.Intensity,
+			tint = cc.TintColor, sat = cc.Saturation, ccb = cc.Brightness, blur = blur.Size, rays = rays.Intensity}}
+	root.Anchored = true
+	toast("Strapped in. Launch sequence started...", C(255, 235, 200), 3)
+end
+
+local function enterSpace()
+	fl.S0 = SO + Vector3.new(0, 650, 0)
+	setLighting(1)
+	if sky then
+		sky.CelestialBodiesShown = false
+		sky.StarCount = 5000
+	end
+	fl.space = buildSpace()
+	fl.dockCore = Vector3.new(fl.space.I.X - 22 - 29.5 - 1, fl.space.I.Y, fl.space.I.Z)
+	flash(0, 1.2)
+end
+
+local function arriveISS()
+	fl.phase = "iss"
+	cdL.Text = ""
+	toast("DOCKED WITH THE ISS - welcome aboard! You are floating in zero gravity.", C(150, 220, 255), 7)
+	flash(0.5, 2)
+	local root, hum = getRoot(), getHum()
+	if root then
+		root.Anchored = false
+		root.CFrame = CFrame.new(fl.space.I + Vector3.new(-2, -2.5, 0))
+		root.AssemblyLinearVelocity = Vector3.zero
+	end
+	local cam = Workspace.CurrentCamera
+	if cam then
+		cam.CameraType = Enum.CameraType.Custom
+		if hum then cam.CameraSubject = hum end
+	end
+	SV.zeroG = true
+	retBtn.Visible = true
+end
+
+local function flightStep(dt)
+	if not fl then return end
+	local cam = Workspace.CurrentCamera
+	if not cam then return end
+	local now = os.clock()
+	local t = now - fl.t0
+	local P = fl.P
+	local core0 = Vector3.new(P.X, P.Y + 20, P.Z)
+
+	if t >= 3 then
+		for _, k in ipairs(ZERO) do N[k].Value = 0 end
+	end
+	if fl.space then
+		N.hush.Value = 1
+		fl.space.earth:PivotTo(CFrame.new(fl.space.E) * CFrame.Angles(0, now * 0.03, 0))
+	end
+
+	if fl.phase == "iss" then
+		local root, hum = getRoot(), getHum()
+		if root then
+			local v = root.AssemblyLinearVelocity
+			v = v * (1 - math.min(1, dt * 0.6))
+			if hum then
+				v = v + hum.MoveDirection * dt * 20
+				if hum.Jump then v = v + Vector3.new(0, dt * 25, 0) end
+			end
+			root.AssemblyLinearVelocity = v
+		end
+		return
+	end
+
+	local shake = Vector3.new(math.noise(now * 31, 1, 0), math.noise(now * 29, 2, 0), math.noise(now * 27, 3, 0))
+	if t < 3 then
+		fl.phase = "count"
+		cdL.Text = "T-" .. (3 - math.floor(t))
+		local sh = (t / 3) * 0.35
+		setShip(CFrame.new(core0 + Vector3.new(math.noise(now * 40, 1, 0) * sh, 0, math.noise(now * 37, 2, 0) * sh)))
+		fl.fire.Size = lerp(4, 22, t / 3)
+		fl.light.Brightness = lerp(1, 5, t / 3)
+		fl.smoke.Rate = lerp(10, 80, t / 3)
+		fl.padSmoke.Rate = lerp(10, 90, t / 3)
+		burst = math.max(burst, 0.5 + t * 0.25)
+		if not fl.rumbled then
+			fl.rumbled = true
+			oneShot(SND.boom, 1.5, 0.25, 1.2)
+		end
+		setCam(P + Vector3.new(46, 16, 46) + shake * (t / 3) * 0.5, P + Vector3.new(0, 24, 0))
+	elseif t < 8 then
+		fl.phase = "ascent"
+		local ta = t - 3
+		cdL.Text = (ta < 1.2) and "LIFTOFF!" or ""
+		if not fl.lift then
+			fl.lift = true
+			oneShot(SND.boom, 3, 0.2, 0)
+			flash(0.6, 1.5)
+		end
+		local alt = 0.5 * 52 * ta * ta
+		local pos = core0 + Vector3.new(0, alt, 0)
+		setShip(CFrame.new(pos) * CFrame.Angles(math.noise(now * 5, 1, 0) * 0.03, 0, math.noise(now * 6, 2, 0) * 0.03))
+		fl.fire.Size = 30
+		fl.light.Brightness = 7
+		fl.smoke.Rate = 140
+		fl.padSmoke.Rate = (ta < 2) and 120 or 0
+		burst = math.max(burst, 1.2 - ta * 0.15)
+		setLighting(smooth(alt / 560))
+		if sky and alt > 150 then sky.StarCount = 5000 end
+		local k = smooth((ta - 0.8) / 2.2)
+		local ang = ta * 0.35 + 0.8
+		local trail = pos + Vector3.new(math.cos(ang) * 38, -16, math.sin(ang) * 38)
+		local camPos = (P + Vector3.new(46, 16, 46)):Lerp(trail, k)
+		setCam(camPos + shake * 0.6, pos + Vector3.new(0, 6, 0))
+	elseif t < 14 then
+		if not fl.space then enterSpace() end
+		fl.phase = "orbit"
+		cdL.Text = ""
+		local to = t - 8
+		local pos = fl.S0 + Vector3.new(70 * to, 6 * to, 0)
+		setShip(CFrame.new(pos) * CFrame.Angles(0, 0, -(math.pi / 2) * smooth(to / 3)))
+		if to > 4 then
+			fl.fire.Enabled = false
+			fl.light.Enabled = false
+			fl.smoke.Rate = 0
+		else
+			fl.fire.Size = lerp(30, 14, to / 4)
+		end
+		local ang = 0.8 + to * 0.55
+		setCam(pos + Vector3.new(math.cos(ang) * 62, 20 + 8 * math.sin(to), math.sin(ang) * 62), pos)
+	elseif t < 22 then
+		fl.phase = "approach"
+		local tp = t - 14
+		local u = tp / 8
+		local e = 1 - (1 - u) ^ 2
+		local X0 = fl.S0 + Vector3.new(420, 36, 0)
+		local pos = X0:Lerp(fl.dockCore, e)
+		setShip(CFrame.new(pos) * CFrame.Angles(0, 0, -math.pi / 2))
+		local ang = 3.4 + tp * 0.3
+		local orbitPos = pos + Vector3.new(math.cos(ang) * 70, 18, math.sin(ang) * 70)
+		local port = fl.space.I + Vector3.new(-22, 0, 0)
+		if tp < 4 then
+			setCam(orbitPos, pos)
+		else
+			local k = smooth((tp - 4) / 2.5)
+			setCam(orbitPos:Lerp(port + Vector3.new(-26, 8, 34), k), pos:Lerp(port, k))
+		end
+	else
+		setShip(CFrame.new(fl.dockCore) * CFrame.Angles(0, 0, -math.pi / 2))
+		arriveISS()
+		return
+	end
+
+	if fl.space then
+		local u = smooth((t - 8) / 14)
+		fl.space.moon:ScaleTo(1 + 1.6 * u)
+		fl.space.moon:PivotTo(CFrame.new(fl.space.M0:Lerp(fl.space.M1, u)) * CFrame.Angles(0, now * 0.02, 0))
+	end
+end
+
+RunService:BindToRenderStep("MoonDoomRocket", Enum.RenderPriority.Camera.Value + 5, function(dt)
+	local ok, e = pcall(flightStep, dt)
+	if not ok then report("rocket flight", e) end
+end)
+
+connect(boardBtn.Activated, function()
+	if boardTarget and startFlight then startFlight(boardTarget) end
+end)
+connect(retBtn.Activated, function()
+	if fl and fl.phase == "iss" then
+		flash(0, 2)
+		endFlight(true)
+		toast("Welcome back to Earth - the timeline resumes", C(255, 235, 200), 4)
+	end
+end)
+connect(lp.CharacterAdded, function()
+	if fl then endFlight(false) end
+end)
+
+connect(RunService.Heartbeat, function()
+	local ok, e = pcall(function()
+		local root = getRoot()
+		local show, target = false, nil
+		if not fl and root then
+			for _, rec in ipairs(rockets) do
+				if not rec.used and rec.hatch.Parent and (rec.hatch.Position - root.Position).Magnitude < 13 then
+					show, target = true, rec
+					break
+				end
+			end
+		end
+		boardBtn.Visible = show
+		boardTarget = target
+	end)
+	if not ok then report("rocket board button", e) end
+end)
+
+local prevCleanup = survivalCleanup
+survivalCleanup = function()
+	if prevCleanup then pcall(prevCleanup) end
+	pcall(function() RunService:UnbindFromRenderStep("MoonDoomRocket") end)
+	SV.inRocket = false
+	SV.zeroG = false
+	pcall(function()
+		local cam = Workspace.CurrentCamera
+		if cam then cam.CameraType = Enum.CameraType.Custom end
+		local root = getRoot()
+		if root then root.Anchored = false end
+	end)
+end
+
+end
+local ok7, e7 = pcall(__part7)
+if not ok7 then report("startup (rocket)", e7) end
+
+
 
 --------------------------------------------------------------------
 -- APPLY A STAGE (+ the two big scripted sequences)
@@ -4084,6 +4962,8 @@ local function applyState(s, T)
 		sky.StarCount = night and math.max(OSKY.StarCount, 4500) or OSKY.StarCount
 	end
 end
+
+SV.applyCurrent = function(T) applyState(R[stage], T) end
 
 local function breakupSequence(tok, i)
 	local s = R[i]
@@ -4307,7 +5187,7 @@ local function renderStep(dt)
 	local t = os.clock()
 
 	updateWind(t)
-	if CONFIG.LowGravity then Workspace.Gravity = N.gravity.Value end
+	if SV.zeroG then Workspace.Gravity = 0 elseif CONFIG.LowGravity then Workspace.Gravity = N.gravity.Value end
 
 	-- earthquake / shockwave shake (tiny quakes still show)
 	local q = CONFIG.Quakes and (N.quake.Value + burst + tsuShake) or 0
@@ -4399,6 +5279,7 @@ local meteorAcc, boltAcc, fireAcc, floatAcc, uiAcc, hazAcc, waterAcc, aftershock
 local swimming = false
 
 local function hazardTick(step, t)
+	if SV.inRocket then hazardDps = 0 hazardWhy = "" return end
 	local root, hum = getRoot(), getHum()
 	if not root or not hum or hum.Health <= 0 then return end
 	local s = R[stage]
@@ -4516,7 +5397,7 @@ local function heartbeat(dt)
 	end
 
 	-- wind pulls you toward the storm (gusts surge; walls and bunkers shield you)
-	if CONFIG.Wind and windMag > 1 then
+	if CONFIG.Wind and windMag > 1 and not SV.inRocket then
 		local root = getRoot()
 		if root then
 			local gust = 1 + 1.8 * math.max(0, math.noise(t * 0.22, 9.1, 0) * 2.2)
@@ -4634,7 +5515,7 @@ local function heartbeat(dt)
 		if N.hurr.Value > 0.02 and CONFIG.Hurricane then
 			lines[#lines + 1] = ("HURRICANE: %d studs%s"):format(math.floor(Hdist), eyeCalm and " (IN THE EYE)" or "")
 		end
-		if #tsunamis > 0 and tsuNear < 5000 then lines[#lines + 1] = ("TSUNAMI: %d studs away"):format(math.floor(tsuNear)) end
+		if tsuNear < 5000 then lines[#lines + 1] = ("TSUNAMI: %d studs away"):format(math.floor(tsuNear)) end
 		hud.Text = table.concat(lines, "\n")
 		hud.Size = UDim2.new(0, 235, 0, 12 + #lines * 15)
 	end
@@ -4649,7 +5530,7 @@ end)
 --------------------------------------------------------------------
 applyStage(stage, true)
 showBanner(stage)
-print("[MoonDoom v7] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
+print("[MoonDoom v8] started at stage " .. stage .. " of " .. NSTAGES .. " - new stage every " .. CONFIG.StageLength .. "s")
 end
 
 local __ok, __err = xpcall(__part2, function(e) return tostring(e) .. "\n" .. debug.traceback() end)
